@@ -1,0 +1,20 @@
+[project]
+name = "nyc-opendata-etl"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "google-cloud-bigquery>=3.31.0",
+    "pandas>=2.2.3",
+    "pandas-stubs>=2.2.3.250308",
+    "pyarrow>=19.0.1",
+    "python-dotenv>=1.1.0",
+    "sodapy>=2.2.0",
+]
+
+[dependency-groups]
+dev = [
+    "mypy>=1.15.0",
+    "pylint>=3.3.6",
+]

@@ -1,0 +1,15 @@
+[bigquery]
+project_id = "cis-4400-457114"
+dataset = "nyc_opendata"
+
+[tables]
+agency_dim = "Agency_Dim"
+complaint_dim = "Complaint_Dim"
+date_dim = "Date_Dim"
+fact_311_complaints = "Fact_311_Complaints"
+fact_parking_tickets = "Fact_Parking_Tickets"
+integrated_fact_requests = "Integrated_Fact_Service_Requests"
+location_dim = "Location_Dim"
+parking_location_dim = "Parking_Location_Dim"
+vehicle_dim = "Vehicle_Dim"
+violation_dim = "Violation_Dim"
