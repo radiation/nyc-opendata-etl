@@ -1,6 +1,6 @@
 import pandas as pd
-from etl.dim_loader import BaseDimLoader
-from etl.utils import hash_key
+from etl.core.dim_loader import BaseDimLoader
+from etl.core.utils import hash_key
 
 
 class VehicleDimLoader(BaseDimLoader):
@@ -8,7 +8,13 @@ class VehicleDimLoader(BaseDimLoader):
         super().__init__("vehicle_dim")
 
     def extract(self, df: pd.DataFrame) -> pd.DataFrame:
-        return df[["plate", "state", "license_type"]].drop_duplicates().copy()
+        required_cols = ["plate", "state", "license_type"]
+
+        if not all(col in df.columns for col in required_cols):
+            print("Skipping VehicleDimLoader — missing columns.")
+            return pd.DataFrame(columns=required_cols)
+
+        return df[required_cols].drop_duplicates().copy()
 
     def transform(self, df: pd.DataFrame) -> pd.DataFrame:
         df = df.copy()

@@ -29,17 +29,23 @@ def clean_311_data(raw_df: pd.DataFrame) -> pd.DataFrame:
     """Cleans and formats the 311 data for loading."""
     df = raw_df.copy()
 
+    # Parse date fields if present
     for col in ["created_date", "closed_date", "due_date"]:
+        new_col = col.replace("_date", "").capitalize() + "_Date"
         if col in df.columns:
-            new_col = col.replace("_date", "").capitalize() + "_Date"
             df[new_col] = pd.to_datetime(df[col], errors="coerce")
         else:
             df[new_col] = pd.NaT
 
-    df["Created_Date_Key"] = df["Created_Date"].dt.strftime("%Y%m%d").astype("Int64")
-    df["Closed_Date_Key"] = df["Closed_Date"].dt.strftime("%Y%m%d").astype("Int64")
-    df["Due_Date_Key"] = df["Due_Date"].dt.strftime("%Y%m%d").astype("Int64")
+    # Create surrogate date keys safely
+    for col in ["Created_Date", "Closed_Date", "Due_Date"]:
+        key_col = f"{col}_Key"
+        if col in df.columns:
+            df[key_col] = df[col].dt.strftime("%Y%m%d").astype("Int64")
+        else:
+            df[key_col] = pd.NA
 
+    # Trim to required columns
     keep_cols = [
         "unique_key",
         "Created_Date", "Closed_Date", "Due_Date",
@@ -50,9 +56,14 @@ def clean_311_data(raw_df: pd.DataFrame) -> pd.DataFrame:
         "cross_street_1", "cross_street_2",
         "intersection_street_1", "intersection_street_2",
         "city", "borough", "latitude", "longitude",
-        "status", "resolution_description"
+        "status", "resolution_description",
     ]
-    return df[keep_cols]
+
+    df["unique_key"] = pd.to_numeric(df["unique_key"], errors="coerce").astype("Int64")
+
+    # Only keep columns that are present
+    available_cols = [col for col in keep_cols if col in df.columns]
+    return df[available_cols]
 
 
 def load_to_bigquery(df: pd.DataFrame) -> None:
@@ -67,4 +78,4 @@ def load_to_bigquery(df: pd.DataFrame) -> None:
     job = client.load_table_from_dataframe(df, table_id)
     job.result()
 
-    print(f"✅ Loaded {df.shape[0]} rows to {table_id}")
+    print(f"Loaded {df.shape[0]} rows to {table_id}")

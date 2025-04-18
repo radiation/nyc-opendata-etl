@@ -1,6 +1,6 @@
 from datetime import datetime
 import pandas as pd
-from etl.dim_loader import BaseDimLoader
+from etl.core.dim_loader import BaseDimLoader
 
 
 class DateDimLoader(BaseDimLoader):

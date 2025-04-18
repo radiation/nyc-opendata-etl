@@ -12,7 +12,7 @@ from etl.dim_loaders.location_loader import LocationDimLoader
 from etl.dim_loaders.vehicle_loader import VehicleDimLoader
 from etl.dim_loaders.violation_loader import ViolationDimLoader
 from etl.dim_loaders.parking_location_loader import ParkingLocationDimLoader
-from etl.date_loader import DateDimLoader
+from etl.dim_loaders.date_loader import DateDimLoader
 
 
 def load_date_dim() -> None:

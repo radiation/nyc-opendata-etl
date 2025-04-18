@@ -79,4 +79,4 @@ def load_to_bigquery(df: pd.DataFrame) -> None:
     job = client.load_table_from_dataframe(df, table_id)
     job.result()
 
-    print(f"✅ Loaded {df.shape[0]} rows to {table_id}")
+    print(f"Loaded {df.shape[0]} rows to {table_id}")

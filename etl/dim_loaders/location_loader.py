@@ -1,6 +1,6 @@
 import pandas as pd
-from etl.dim_loader import BaseDimLoader
-from etl.utils import hash_key
+from etl.core.dim_loader import BaseDimLoader
+from etl.core.utils import hash_key
 
 
 class LocationDimLoader(BaseDimLoader):
@@ -26,7 +26,20 @@ class LocationDimLoader(BaseDimLoader):
 
     def transform(self, df: pd.DataFrame) -> pd.DataFrame:
         df = df.copy()
+
+        # Ensure latitude and longitude are numeric
+        df["latitude"] = pd.to_numeric(df["latitude"], errors="coerce")
+        df["longitude"] = pd.to_numeric(df["longitude"], errors="coerce")
+
         df["Location_Key"] = df.apply(hash_key, axis=1)
-        # Reorder columns to match BigQuery table schema
-        cols = ["Location_Key"] + [col for col in df.columns if col != "Location_Key"]
-        return df[cols]
+
+        return df[
+            [
+                "Location_Key",
+                "borough", "city", "incident_zip",
+                "street_name", "incident_address",
+                "cross_street_1", "cross_street_2",
+                "intersection_street_1", "intersection_street_2",
+                "latitude", "longitude"
+            ]
+        ]

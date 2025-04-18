@@ -1,6 +1,6 @@
 import pandas as pd
-from etl.dim_loader import BaseDimLoader
-from etl.utils import hash_key
+from etl.core.dim_loader import BaseDimLoader
+from etl.core.utils import hash_key
 
 
 class AgencyDimLoader(BaseDimLoader):
