@@ -50,7 +50,7 @@ def load_dimensions(df_311: pd.DataFrame, df_parking: pd.DataFrame) -> dict[str,
         print(f"\nRunning {loader.__class__.__name__}...")
         extracted = loader.extract(source_df)
         if extracted.empty:
-            print(f"⚠️  No data to load into {loader.table_id}")
+            print(f"No data to load into {loader.table_id}")
         else:
             transformed = loader.transform(extracted)
             loader.load(transformed)
@@ -68,8 +68,17 @@ def main(start: str | None = None, end: str | None = None) -> None:
         raw_311 = get_yesterdays_311_data()
         raw_parking = get_yesterdays_parking_data()
 
-    cleaned_311 = clean_311_data(raw_311)
-    cleaned_parking = clean_parking_data(raw_parking)
+    if raw_311.empty:
+        print("No new 311 data to process.")
+        cleaned_311 = pd.DataFrame()
+    else:
+        cleaned_311 = clean_311_data(raw_311)
+
+    if raw_parking.empty:
+        print("No new parking data to process.")
+        cleaned_parking = pd.DataFrame()
+    else:
+        cleaned_parking = clean_parking_data(raw_parking)
 
     if cleaned_311.empty and cleaned_parking.empty:
         print("No new data to process for 311 or parking.")
@@ -101,6 +110,16 @@ def main(start: str | None = None, end: str | None = None) -> None:
             cleaned_parking = assign_keys(cleaned_parking, dim_data["violation"], ["violation_code", "violation_description"], "Violation_Key")
         if "parking_location" in dim_data:
             cleaned_parking = assign_keys(cleaned_parking, dim_data["parking_location"], ["borough", "precinct"], "Parking_Location_Key")
+
+        fact_fields = [
+            "summons_number",
+            "Issue_Date", "Issue_Date_Key",
+            "Agency_Key", "Violation_Key", "Vehicle_Key", "Parking_Location_Key",
+            "Fine_Amount", "Penalty_Amount", "Interest_Amount",
+            "Reduction_Amount", "Payment_Amount", "Amount_Due"
+        ]
+
+        cleaned_parking = cleaned_parking[[col for col in fact_fields if col in cleaned_parking.columns]]
 
         load_parking_fact(cleaned_parking)
 

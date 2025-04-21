@@ -8,14 +8,50 @@ from config.env import NYC_API_TOKEN
 from config import load_config
 
 
+PARKING_DATASETS = {
+    2014: "jt7v-77mi",
+    2015: "c284-tqph",
+    2016: "kiv2-tbus",
+    2017: "2bnn-yakx",
+    2018: "a5td-mswe",
+    2019: "faiq-9dfq",
+    2020: "p7t3-5i9s",
+    2021: "kvfd-bves",
+    2022: "7mxj-7a6y",
+    2023: "869v-vr48",
+    2024: "pvqr-7yc4",
+}
+
+LATEST_FISCAL_YEAR = max(PARKING_DATASETS.keys())
+EARLIEST_FISCAL_YEAR = min(PARKING_DATASETS.keys())
+
 def get_parking_data_between(start: str, end: str, limit: int = 100000) -> pd.DataFrame:
     if not NYC_API_TOKEN:
         raise ValueError("Missing NYC_API_TOKEN. Check your .env file.")
 
     client = Socrata("data.cityofnewyork.us", NYC_API_TOKEN)
+    start_date = datetime.strptime(start[:10], "%Y-%m-%d")
+
+    # NYC fiscal year starts July 1st
+    fiscal_year = start_date.year if start_date.month < 7 else start_date.year + 1
+
+    if fiscal_year < EARLIEST_FISCAL_YEAR:
+        print(f"Skipping parking load — data unavailable for fiscal year {fiscal_year}")
+        return pd.DataFrame()
+
+    # Always use the latest dataset for current FY and recent data
+    if fiscal_year > LATEST_FISCAL_YEAR:
+        fiscal_year = LATEST_FISCAL_YEAR
+
+    resource_id = PARKING_DATASETS.get(fiscal_year)
+
+    if not resource_id:
+        print(f"No dataset found for fiscal year {fiscal_year}")
+        return pd.DataFrame()
+
     where_clause = f"issue_date >= '{start}' AND issue_date < '{end}'"
-    print(f"Fetching parking data between {start} and {end}")
-    results: list[dict[str, Any]] = client.get("pvqr-7yc4", where=where_clause, limit=limit)
+    print(f"Fetching parking data from {resource_id} (FY{fiscal_year}) between {start} and {end}")
+    results: list[dict[str, Any]] = client.get(resource_id, where=where_clause, limit=limit)
     return pd.DataFrame.from_records(results)
 
 

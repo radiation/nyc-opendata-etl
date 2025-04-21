@@ -22,7 +22,15 @@ class ViolationDimLoader(BaseDimLoader):
         return pd.DataFrame(columns=["violation_code", "violation_description"])
 
     def transform(self, df: pd.DataFrame) -> pd.DataFrame:
-        columns = ["violation_code", "violation_description"]
-        df = normalize_strings(df, columns)
-        df["Violation_Key"] = df.apply(lambda row: hash_key(row, columns), axis=1)
-        return df[["Violation_Key"] + columns]
+        # Only use fields that actually exist
+        available_fields = [col for col in ["violation_code", "violation_description"] if col in df.columns]
+
+        if not available_fields:
+            print("ViolationDimLoader: No valid columns found — skipping transform.")
+            return pd.DataFrame(columns=["Violation_Key"])
+
+        df = normalize_strings(df, available_fields)
+        df["Violation_Key"] = df.apply(lambda row: hash_key(row, available_fields), axis=1)
+
+        return df[["Violation_Key"] + available_fields]
+

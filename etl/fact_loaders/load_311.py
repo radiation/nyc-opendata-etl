@@ -9,11 +9,17 @@ from config import load_config
 from etl.core.utils import normalize_strings
 
 
-def get_311_data_between(start: str, end: str, limit: int = 10000) -> pd.DataFrame:
+def get_311_data_between(start: str, end: str, limit: int = 10000000) -> pd.DataFrame:
     client = Socrata("data.cityofnewyork.us", NYC_API_TOKEN)
     where_clause = f"created_date >= '{start}' AND created_date < '{end}'"
-    print(f"📦 Fetching 311 data between: {start} → {end}")
+    print(f"Fetching 311 data between: {start} → {end}")
     results = client.get("erm2-nwe9", where=where_clause, limit=limit)
+    print(f"🧪 Raw API result length: {len(results)}")
+    if results:
+        print(f"🧪 Sample keys in first row: {list(results[0].keys())}")
+    else:
+        print("🧪 No results returned from API.")
+
     return pd.DataFrame.from_records(results)
 
 
@@ -63,10 +69,6 @@ def clean_311_data(raw_df: pd.DataFrame) -> pd.DataFrame:
         "city", "borough", "latitude", "longitude",
         "status", "resolution_description",
     ]
-
-    print("📦 Columns returned from API:", df.columns.tolist())
-    print("🧪 DataFrame shape:", df.shape)
-    print(df.head(3))
 
     if "unique_key" not in df.columns:
         raise ValueError(
