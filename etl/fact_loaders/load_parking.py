@@ -25,7 +25,7 @@ PARKING_DATASETS = {
 LATEST_FISCAL_YEAR = max(PARKING_DATASETS.keys())
 EARLIEST_FISCAL_YEAR = min(PARKING_DATASETS.keys())
 
-def get_parking_data_between(start: str, end: str, limit: int = 100000) -> pd.DataFrame:
+def get_parking_data_between(start: str, end: str, limit: int = 5000000) -> pd.DataFrame:
     if not NYC_API_TOKEN:
         raise ValueError("Missing NYC_API_TOKEN. Check your .env file.")
 

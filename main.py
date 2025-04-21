@@ -8,6 +8,7 @@ from etl.fact_loaders.load_311 import (
     clean_311_data, 
     load_to_bigquery as load_311_fact
 )
+from etl.fact_loaders.load_integrated_fact import load_to_bigquery as load_integrated_fact
 from etl.fact_loaders.load_parking import (
     get_parking_data_between,
     get_yesterdays_parking_data, 
@@ -84,10 +85,10 @@ def main(start: str | None = None, end: str | None = None) -> None:
         print("No new data to process for 311 or parking.")
         return
 
-    # Step 3: Load dimensions and keep them in memory for FK resolution
+    # Load dimensions and keep them in memory for FK resolution
     dim_data = load_dimensions(cleaned_311, cleaned_parking)
 
-    # Step 4: Assign foreign keys to fact_311
+    # Assign foreign keys to fact_311
     if not cleaned_311.empty:
         cleaned_311 = assign_keys(cleaned_311, dim_data["agency"], ["agency", "agency_name"], "Agency_Key")
         cleaned_311 = assign_keys(cleaned_311, dim_data["complaint"], ["complaint_type", "descriptor", "location_type"], "Complaint_Key")
@@ -102,7 +103,7 @@ def main(start: str | None = None, end: str | None = None) -> None:
 
         load_311_fact(cleaned_311)
 
-    # Step 5: Assign foreign keys to fact_parking
+    # Assign foreign keys to fact_parking
     if not cleaned_parking.empty:
         if "vehicle" in dim_data:
             cleaned_parking = assign_keys(cleaned_parking, dim_data["vehicle"], ["plate", "state", "license_type"], "Vehicle_Key")
@@ -122,6 +123,43 @@ def main(start: str | None = None, end: str | None = None) -> None:
         cleaned_parking = cleaned_parking[[col for col in fact_fields if col in cleaned_parking.columns]]
 
         load_parking_fact(cleaned_parking)
+
+    # Build & load integrated fact
+    frames: list[pd.DataFrame] = []
+    if not cleaned_311.empty:
+        df_i311 = cleaned_311.assign(
+            Request_ID=cleaned_311["unique_key"],
+            Date_Key=cleaned_311["Created_Date_Key"],
+            Request_Type="311",
+            Amount_Due=pd.NA
+        )[[
+            "Request_ID", "Date_Key", "Agency_Key", "Complaint_Key", "Location_Key",
+            "Request_Type", "resolution_description", "Amount_Due"
+        ]]
+        frames.append(df_i311)
+
+    if not cleaned_parking.empty:
+        ip = cleaned_parking.copy()
+
+        # Build each integrated field explicitly:
+        ip["Request_ID"] = ip["summons_number"].astype("Int64")
+        ip["Date_Key"] = ip["Issue_Date_Key"]
+        ip["Agency_Key"] = pd.NA
+        ip["Complaint_Key"] = pd.NA
+        ip["Location_Key"] = ip.get("Parking_Location_Key", pd.NA)
+        ip["Request_Type"] = "Parking"
+        ip["resolution_description"] = pd.NA
+
+        df_ip = ip[[
+            "Request_ID", "Date_Key", "Agency_Key",
+            "Complaint_Key", "Location_Key",
+            "Request_Type", "resolution_description", "Amount_Due"
+        ]]
+        frames.append(df_ip)
+
+    if frames:
+        integrated_df = pd.concat(frames, ignore_index=True)
+        load_integrated_fact(integrated_df)
 
     print("ETL complete!")
 

@@ -14,12 +14,6 @@ def get_311_data_between(start: str, end: str, limit: int = 10000000) -> pd.Data
     where_clause = f"created_date >= '{start}' AND created_date < '{end}'"
     print(f"Fetching 311 data between: {start} → {end}")
     results = client.get("erm2-nwe9", where=where_clause, limit=limit)
-    print(f"🧪 Raw API result length: {len(results)}")
-    if results:
-        print(f"🧪 Sample keys in first row: {list(results[0].keys())}")
-    else:
-        print("🧪 No results returned from API.")
-
     return pd.DataFrame.from_records(results)
 
 
