@@ -7,6 +7,7 @@ from google.cloud import bigquery
 from config.env import NYC_API_TOKEN
 from config import load_config
 
+from etl.core.utils import normalize_strings
 
 def get_yesterdays_311_data() -> pd.DataFrame:
     """Pulls 311 service requests from the NYC Open Data API for yesterday."""
@@ -61,6 +62,15 @@ def clean_311_data(raw_df: pd.DataFrame) -> pd.DataFrame:
 
     df["unique_key"] = pd.to_numeric(df["unique_key"], errors="coerce").astype("Int64")
 
+    df = normalize_strings(df, [
+        "agency", "agency_name",
+        "complaint_type", "descriptor", "location_type",
+        "incident_zip", "incident_address", "street_name",
+        "cross_street_1", "cross_street_2",
+        "intersection_street_1", "intersection_street_2",
+        "city", "borough",
+    ])
+
     # Only keep columns that are present
     available_cols = [col for col in keep_cols if col in df.columns]
     return df[available_cols]
@@ -75,6 +85,10 @@ def load_to_bigquery(df: pd.DataFrame) -> None:
     table_id = f"{project_id}.{dataset}.{table_name}"
 
     client = bigquery.Client()
+
+    if "__join_key__" in df.columns:
+        df = df.drop(columns="__join_key__")
+
     job = client.load_table_from_dataframe(df, table_id)
     job.result()
 

@@ -1,6 +1,6 @@
 import pandas as pd
 from etl.core.dim_loader import BaseDimLoader
-from etl.core.utils import hash_key
+from etl.core.utils import hash_key, normalize_strings
 
 
 class AgencyDimLoader(BaseDimLoader):
@@ -11,7 +11,7 @@ class AgencyDimLoader(BaseDimLoader):
         return df[["agency", "agency_name"]].drop_duplicates().copy()
 
     def transform(self, df: pd.DataFrame) -> pd.DataFrame:
-        df = df.copy()
-        df["Agency_Key"] = df.apply(hash_key, axis=1)
-        df = df[["Agency_Key", "agency", "agency_name"]]
-        return df
+        columns = ["agency", "agency_name"]
+        df = normalize_strings(df, columns)
+        df["Agency_Key"] = df.apply(lambda row: hash_key(row, columns), axis=1)
+        return df[["Agency_Key"] + columns]

@@ -1,6 +1,6 @@
 import pandas as pd
 from etl.core.dim_loader import BaseDimLoader
-from etl.core.utils import hash_key
+from etl.core.utils import hash_key, normalize_strings
 
 
 class ViolationDimLoader(BaseDimLoader):
@@ -22,14 +22,7 @@ class ViolationDimLoader(BaseDimLoader):
         return pd.DataFrame(columns=["violation_code", "violation_description"])
 
     def transform(self, df: pd.DataFrame) -> pd.DataFrame:
-        df = df.copy()
-        df["Violation_Key"] = df.apply(hash_key, axis=1)
-
-        # Only include columns that actually exist
-        cols = ["Violation_Key"]
-        if "violation_code" in df.columns:
-            cols.append("violation_code")
-        if "violation_description" in df.columns:
-            cols.append("violation_description")
-
-        return df[cols]
+        columns = ["violation_code", "violation_description"]
+        df = normalize_strings(df, columns)
+        df["Violation_Key"] = df.apply(lambda row: hash_key(row, columns), axis=1)
+        return df[["Violation_Key"] + columns]

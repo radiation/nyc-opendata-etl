@@ -1,6 +1,6 @@
 import pandas as pd
 from etl.core.dim_loader import BaseDimLoader
-from etl.core.utils import hash_key
+from etl.core.utils import hash_key, normalize_strings
 
 
 class ComplaintDimLoader(BaseDimLoader):
@@ -11,7 +11,7 @@ class ComplaintDimLoader(BaseDimLoader):
         return df[["complaint_type", "descriptor", "location_type"]].drop_duplicates().copy()
 
     def transform(self, df: pd.DataFrame) -> pd.DataFrame:
-        df = df.copy()
-        df["Complaint_Key"] = df.apply(hash_key, axis=1)
-        df = df[["Complaint_Key", "complaint_type", "descriptor", "location_type"]]
-        return df
+        columns = ["complaint_type", "descriptor", "location_type"]
+        df = normalize_strings(df, columns)
+        df["Complaint_Key"] = df.apply(lambda row: hash_key(row, columns), axis=1)
+        return df[["Complaint_Key"] + columns]

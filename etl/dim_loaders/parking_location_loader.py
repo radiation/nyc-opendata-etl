@@ -1,6 +1,6 @@
 import pandas as pd
 from etl.core.dim_loader import BaseDimLoader
-from etl.core.utils import hash_key
+from etl.core.utils import hash_key, normalize_strings
 
 
 class ParkingLocationDimLoader(BaseDimLoader):
@@ -17,13 +17,8 @@ class ParkingLocationDimLoader(BaseDimLoader):
         return df[required_cols].drop_duplicates().copy()
 
     def transform(self, df: pd.DataFrame) -> pd.DataFrame:
-        df = df.copy()
-        df["Parking_Location_Key"] = df.apply(hash_key, axis=1)
-
-        cols = ["Parking_Location_Key"]
-        if "borough" in df.columns:
-            cols.append("borough")
-        if "precinct" in df.columns:
-            cols.append("precinct")
-
-        return df[cols]
+        columns = ["borough", "precinct"]
+        df = normalize_strings(df, columns)
+        df = df.dropna(subset=columns)
+        df["Parking_Location_Key"] = df.apply(lambda row: hash_key(row, columns), axis=1)
+        return df[["Parking_Location_Key"] + columns]

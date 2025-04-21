@@ -66,6 +66,19 @@ def clean_parking_data(df: pd.DataFrame) -> pd.DataFrame:
         inplace=True,
     )
 
+    if "summons_number" in df.columns:
+        df["summons_number"] = pd.to_numeric(df["summons_number"], errors="coerce").astype("Int64")
+
+    keep_cols = [
+        "summons_number",
+        "Issue_Date", "Issue_Date_Key",
+        "Agency_Key", "Violation_Key", "Vehicle_Key", "Parking_Location_Key",
+        "Fine_Amount", "Penalty_Amount", "Interest_Amount",
+        "Reduction_Amount", "Payment_Amount", "Amount_Due",
+    ]
+
+    df = df[[col for col in keep_cols if col in df.columns]]
+
     return df
 
 
@@ -74,6 +87,22 @@ def load_to_bigquery(df: pd.DataFrame) -> None:
     project = cfg["bigquery"]["project_id"]
     dataset = cfg["bigquery"]["dataset"]
     table_id = f"{project}.{dataset}.{cfg['tables']['fact_parking_tickets']}"
+
+    print("🧪 Columns (with dtypes):")
+    print(df.dtypes)
+
+    dupes = df.columns[df.columns.duplicated()].tolist()
+    if dupes:
+        print(f"⚠️ Duplicate column names: {dupes}")
+
+    # Deduplicate columns (in case 'Issue_Date' or others got duplicated)
+    df = df.loc[:, ~df.columns.duplicated()]
+
+    # Explicit drop just in case
+    if "__join_key__" in df.columns:
+        df = df.drop(columns="__join_key__")
+
+    print("✅ Final fact_parking columns:", df.columns.tolist())
 
     client = bigquery.Client()
     job = client.load_table_from_dataframe(df, table_id)

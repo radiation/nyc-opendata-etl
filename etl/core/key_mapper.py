@@ -21,7 +21,15 @@ def assign_keys(
     dim_df = dim_df.copy()
     fact_df = fact_df.copy()
 
-    dim_df[key_name] = dim_df.apply(hash_key, axis=1)
+    dim_df[key_name] = dim_df.apply(lambda row: hash_key(row, dim_fields), axis=1)
+
+    # Debug: Show raw inputs to the join key hash
+    print(f"\n🧪 Hash debug for {key_name}:")
+    print("  🔹 DIM sample:")
+    print(dim_df[dim_fields].drop_duplicates().head())
+
+    print("  🔹 FACT sample:")
+    print(fact_df[dim_fields].drop_duplicates().head())
 
     # Defensive join key generation
     try:
@@ -32,10 +40,18 @@ def assign_keys(
         fact_df[key_name] = pd.NA
         return fact_df
 
+    # Drop join fields from dim_df to avoid column collisions
+    dim_df = dim_df.drop(columns=[f for f in dim_fields if f in dim_df.columns], errors="ignore")
+    
     joined = fact_df.merge(dim_df[[key_name, "__join_key__"]], on="__join_key__", how="left")
 
     # Clean up only if the column exists
-    drop_cols = ["__join_key"] + [f for f in dim_fields if f in joined.columns]
-    joined = joined.drop(columns=drop_cols, errors="ignore")
+    if "__join_key__" in joined.columns:
+        joined = joined.drop(columns=["__join_key__"], errors="ignore")
+
+    # Also drop original dimension fields if still present
+    for field in dim_fields:
+        if field in joined.columns:
+            joined = joined.drop(columns=field)
 
     return joined

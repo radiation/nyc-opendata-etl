@@ -76,6 +76,12 @@ def main() -> None:
             "latitude", "longitude"
         ], "Location_Key")
 
+        print("Columns BEFORE upload:", cleaned_311.columns.tolist())
+
+        if "__join_key__" in cleaned_311.columns:
+            print("⚠️ __join_key__ still present before upload! Dropping it here.")
+            cleaned_311 = cleaned_311.drop(columns="__join_key__")
+            
         load_311_fact(cleaned_311)
 
     # Step 5: Assign foreign keys to fact_parking

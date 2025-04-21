@@ -1,6 +1,6 @@
 import pandas as pd
 from etl.core.dim_loader import BaseDimLoader
-from etl.core.utils import hash_key
+from etl.core.utils import hash_key, normalize_strings
 
 
 class LocationDimLoader(BaseDimLoader):
@@ -25,21 +25,23 @@ class LocationDimLoader(BaseDimLoader):
         ].drop_duplicates().copy()
 
     def transform(self, df: pd.DataFrame) -> pd.DataFrame:
-        df = df.copy()
+        string_columns = [
+            "borough", "city", "incident_zip",
+            "street_name", "incident_address",
+            "cross_street_1", "cross_street_2",
+            "intersection_street_1", "intersection_street_2",
+        ]
 
-        # Ensure latitude and longitude are numeric
+        # Normalize text fields
+        df = normalize_strings(df, string_columns)
+
+        # Coerce lat/lon to numeric
         df["latitude"] = pd.to_numeric(df["latitude"], errors="coerce")
         df["longitude"] = pd.to_numeric(df["longitude"], errors="coerce")
 
-        df["Location_Key"] = df.apply(hash_key, axis=1)
+        # Hash based only on string columns (not lat/lon)
+        df["Location_Key"] = df.apply(lambda row: hash_key(row, string_columns), axis=1)
 
         return df[
-            [
-                "Location_Key",
-                "borough", "city", "incident_zip",
-                "street_name", "incident_address",
-                "cross_street_1", "cross_street_2",
-                "intersection_street_1", "intersection_street_2",
-                "latitude", "longitude"
-            ]
+            ["Location_Key"] + string_columns + ["latitude", "longitude"]
         ]
