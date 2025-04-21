@@ -23,14 +23,6 @@ def assign_keys(
 
     dim_df[key_name] = dim_df.apply(lambda row: hash_key(row, dim_fields), axis=1)
 
-    # Debug: Show raw inputs to the join key hash
-    print(f"\n🧪 Hash debug for {key_name}:")
-    print("  🔹 DIM sample:")
-    print(dim_df[dim_fields].drop_duplicates().head())
-
-    print("  🔹 FACT sample:")
-    print(fact_df[dim_fields].drop_duplicates().head())
-
     # Defensive join key generation
     try:
         dim_df["__join_key__"] = dim_df[dim_fields].astype(str).agg("|".join, axis=1)

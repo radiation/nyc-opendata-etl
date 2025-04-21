@@ -22,9 +22,9 @@ class BaseDimLoader(ABC):
 
     def load(self, df: pd.DataFrame) -> None:
         if df.empty:
-            print(f"⚠️  No data to load into {self.table_id}")
+            print(f"No data to load into {self.table_id}")
             return
 
         job = self.client.load_table_from_dataframe(df, self.table_id, job_config=bigquery.LoadJobConfig(write_disposition="WRITE_APPEND"))
         job.result()
-        print(f"✅ Loaded {df.shape[0]} rows into {self.table_id}")
+        print(f"Loaded {df.shape[0]} rows into {self.table_id}")

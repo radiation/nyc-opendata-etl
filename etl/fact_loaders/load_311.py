@@ -1,4 +1,3 @@
-from typing import Any
 from datetime import datetime, timedelta
 
 import pandas as pd
@@ -9,21 +8,26 @@ from config import load_config
 
 from etl.core.utils import normalize_strings
 
-def get_yesterdays_311_data() -> pd.DataFrame:
-    """Pulls 311 service requests from the NYC Open Data API for yesterday."""
-    if not NYC_API_TOKEN:
-        raise ValueError("Missing NYC_API_TOKEN. Check your .env file.")
 
+def get_311_data_between(start: str, end: str, limit: int = 10000) -> pd.DataFrame:
     client = Socrata("data.cityofnewyork.us", NYC_API_TOKEN)
-
-    yesterday: str = (datetime.utcnow() - timedelta(days=1)).strftime("%Y-%m-%dT00:00:00.000")
-    results: list[dict[str, Any]] = client.get(
-        "erm2-nwe9",
-        where=f"created_date >= '{yesterday}'",
-        limit=10000,
-    )
-
+    where_clause = f"created_date >= '{start}' AND created_date < '{end}'"
+    print(f"📦 Fetching 311 data between: {start} → {end}")
+    results = client.get("erm2-nwe9", where=where_clause, limit=limit)
     return pd.DataFrame.from_records(results)
+
+
+def get_yesterdays_311_data() -> pd.DataFrame:
+    today = datetime.utcnow().date()
+    start = f"{today - timedelta(days=1)}T00:00:00.000"
+    end = f"{today}T00:00:00.000"
+    return get_311_data_between(start, end)
+
+
+def get_311_data_for_year(year: int) -> pd.DataFrame:
+    start = f"{year}-01-01T00:00:00.000"
+    end = f"{year + 1}-01-01T00:00:00.000"
+    return get_311_data_between(start, end, limit=500000)
 
 
 def clean_311_data(raw_df: pd.DataFrame) -> pd.DataFrame:
@@ -59,6 +63,16 @@ def clean_311_data(raw_df: pd.DataFrame) -> pd.DataFrame:
         "city", "borough", "latitude", "longitude",
         "status", "resolution_description",
     ]
+
+    print("📦 Columns returned from API:", df.columns.tolist())
+    print("🧪 DataFrame shape:", df.shape)
+    print(df.head(3))
+
+    if "unique_key" not in df.columns:
+        raise ValueError(
+            "Missing required column 'unique_key' in 311 data. "
+            "This likely means the API schema changed or the response was empty."
+        )
 
     df["unique_key"] = pd.to_numeric(df["unique_key"], errors="coerce").astype("Int64")
 
