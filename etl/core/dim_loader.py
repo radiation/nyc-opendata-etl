@@ -1,4 +1,4 @@
-from abc import ABC
+from abc import ABC, abstractmethod
 from typing import Protocol
 import pandas as pd
 from google.cloud import bigquery
@@ -19,6 +19,16 @@ class BaseDimLoader(ABC):
         tables = cfg["tables"]
         self.table_id = f"{project}.{dataset}.{tables[table_key]}"
         self.client = bigquery.Client()
+
+    @abstractmethod
+    def extract(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Pull raw rows for this dimension out of the combined DataFrame."""
+        ...
+
+    @abstractmethod
+    def transform(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Sanitize and key the DataFrame for loading."""
+        ...
 
     def load(self, df: pd.DataFrame) -> None:
         if df.empty:
