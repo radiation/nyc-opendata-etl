@@ -1,29 +1,32 @@
-from datetime import datetime, timedelta
 import argparse
+from datetime import datetime, timedelta
+
 import pandas as pd
 
-from etl.fact_loaders.load_311 import (
-    get_311_data_between, 
-    get_yesterdays_311_data, 
-    clean_311_data, 
-    load_to_bigquery as load_311_fact
-)
-from etl.fact_loaders.load_integrated_fact import load_to_bigquery as load_integrated_fact
-from etl.fact_loaders.load_parking import (
-    get_parking_data_between,
-    get_yesterdays_parking_data, 
-    clean_parking_data, 
-    load_to_bigquery as load_parking_fact
-)
 from etl.core.key_mapper import assign_keys
-
 from etl.dim_loaders.agency_loader import AgencyDimLoader
 from etl.dim_loaders.complaint_loader import ComplaintDimLoader
+from etl.dim_loaders.date_loader import DateDimLoader
 from etl.dim_loaders.location_loader import LocationDimLoader
+from etl.dim_loaders.parking_location_loader import ParkingLocationDimLoader
 from etl.dim_loaders.vehicle_loader import VehicleDimLoader
 from etl.dim_loaders.violation_loader import ViolationDimLoader
-from etl.dim_loaders.parking_location_loader import ParkingLocationDimLoader
-from etl.dim_loaders.date_loader import DateDimLoader
+from etl.fact_loaders.load_311 import (
+    clean_311_data,
+    get_311_data_between,
+    get_yesterdays_311_data,
+)
+from etl.fact_loaders.load_311 import load_to_bigquery as load_311_fact
+from etl.fact_loaders.load_integrated_fact import (
+    load_to_bigquery as load_integrated_fact,
+)
+from etl.fact_loaders.load_parking import (
+    clean_parking_data,
+    get_parking_data_between,
+    get_yesterdays_parking_data,
+)
+from etl.fact_loaders.load_parking import load_to_bigquery as load_parking_fact
+
 
 def load_date_dim() -> None:
     date_loader = DateDimLoader()

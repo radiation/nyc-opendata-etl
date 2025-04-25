@@ -1,6 +1,7 @@
-from typing import TypedDict
-import tomllib
 from pathlib import Path
+import tomllib
+from typing import TypedDict
+
 
 class BQConfig(TypedDict):
     project_id: str

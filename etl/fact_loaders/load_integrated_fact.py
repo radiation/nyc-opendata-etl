@@ -1,5 +1,6 @@
-import pandas as pd
 from google.cloud import bigquery
+import pandas as pd
+
 from config import load_config
 
 

@@ -1,11 +1,11 @@
 from datetime import datetime, timedelta
 
-import pandas as pd
-from sodapy import Socrata # type: ignore
 from google.cloud import bigquery
-from config.env import NYC_API_TOKEN
-from config import load_config
+import pandas as pd
+from sodapy import Socrata  # type: ignore
 
+from config import load_config
+from config.env import NYC_API_TOKEN
 from etl.core.utils import normalize_strings
 
 
