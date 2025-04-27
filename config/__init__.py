@@ -1,6 +1,7 @@
 from pathlib import Path
-import tomllib
 from typing import TypedDict
+
+import tomllib
 
 
 class BQConfig(TypedDict):
@@ -13,7 +14,7 @@ class TableConfig(TypedDict):
     date_dim: str
     fact_311_complaints: str
     fact_parking_tickets: str
-    integrated_fact_requests: str
+    fact_integrated_requests: str
     location_dim: str
     parking_location_dim: str
     vehicle_dim: str

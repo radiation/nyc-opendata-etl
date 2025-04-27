@@ -1,10 +1,8 @@
 from datetime import datetime, timedelta
 
-from google.cloud import bigquery
 import pandas as pd
-from sodapy import Socrata  # type: ignore
+from sodapy import Socrata
 
-from config import load_config
 from config.env import NYC_API_TOKEN
 from etl.core.utils import normalize_strings
 
@@ -53,15 +51,30 @@ def clean_311_data(raw_df: pd.DataFrame) -> pd.DataFrame:
     # Trim to required columns
     keep_cols = [
         "unique_key",
-        "Created_Date", "Closed_Date", "Due_Date",
-        "Created_Date_Key", "Closed_Date_Key", "Due_Date_Key",
-        "agency", "agency_name",
-        "complaint_type", "descriptor", "location_type",
-        "incident_zip", "incident_address", "street_name",
-        "cross_street_1", "cross_street_2",
-        "intersection_street_1", "intersection_street_2",
-        "city", "borough", "latitude", "longitude",
-        "status", "resolution_description",
+        "Created_Date",
+        "Closed_Date",
+        "Due_Date",
+        "Created_Date_Key",
+        "Closed_Date_Key",
+        "Due_Date_Key",
+        "agency",
+        "agency_name",
+        "complaint_type",
+        "descriptor",
+        "location_type",
+        "incident_zip",
+        "incident_address",
+        "street_name",
+        "cross_street_1",
+        "cross_street_2",
+        "intersection_street_1",
+        "intersection_street_2",
+        "city",
+        "borough",
+        "latitude",
+        "longitude",
+        "status",
+        "resolution_description",
     ]
 
     if "unique_key" not in df.columns:
@@ -72,34 +85,26 @@ def clean_311_data(raw_df: pd.DataFrame) -> pd.DataFrame:
 
     df["unique_key"] = pd.to_numeric(df["unique_key"], errors="coerce").astype("Int64")
 
-    df = normalize_strings(df, [
-        "agency", "agency_name",
-        "complaint_type", "descriptor", "location_type",
-        "incident_zip", "incident_address", "street_name",
-        "cross_street_1", "cross_street_2",
-        "intersection_street_1", "intersection_street_2",
-        "city", "borough",
-    ])
+    df = normalize_strings(
+        df,
+        [
+            "agency",
+            "agency_name",
+            "complaint_type",
+            "descriptor",
+            "location_type",
+            "incident_zip",
+            "incident_address",
+            "street_name",
+            "cross_street_1",
+            "cross_street_2",
+            "intersection_street_1",
+            "intersection_street_2",
+            "city",
+            "borough",
+        ],
+    )
 
     # Only keep columns that are present
     available_cols = [col for col in keep_cols if col in df.columns]
     return df[available_cols]
-
-
-def load_to_bigquery(df: pd.DataFrame) -> None:
-    """Loads a DataFrame to the configured BigQuery fact table."""
-    cfg = load_config()
-    project_id = cfg["bigquery"]["project_id"]
-    dataset = cfg["bigquery"]["dataset"]
-    table_name = cfg["tables"]["fact_311_complaints"]
-    table_id = f"{project_id}.{dataset}.{table_name}"
-
-    client = bigquery.Client()
-
-    if "__join_key__" in df.columns:
-        df = df.drop(columns="__join_key__")
-
-    job = client.load_table_from_dataframe(df, table_id)
-    job.result()
-
-    print(f"Loaded {df.shape[0]} rows to {table_id}")

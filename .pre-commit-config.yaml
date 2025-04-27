@@ -34,11 +34,12 @@ repos:
 # C0116 (missing-function-docstring)
 # E0013 (bad-continuation)
 # E0213 (no-self-argument)
+# E0401 (no-name-in-module)
 # R0903 (too-few-public-methods)
 # W0511 (fixme)
 -   repo: https://github.com/PyCQA/pylint
     rev: v3.0.3
     hooks:
     -   id: pylint
-        args: ["--disable=C0103,C0114,C0115,C0116,E0013,E0213,R0903,W0511"]
+        args: ["--disable=C0103,C0114,C0115,C0116,E0013,E0213,E0401,R0903,W0511"]
         exclude: "alembic/.*"

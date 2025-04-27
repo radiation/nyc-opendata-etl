@@ -9,7 +9,11 @@ class ComplaintDimLoader(BaseDimLoader):
         super().__init__("complaint_dim")
 
     def extract(self, df: pd.DataFrame) -> pd.DataFrame:
-        return df[["complaint_type", "descriptor", "location_type"]].drop_duplicates().copy()
+        return (
+            df[["complaint_type", "descriptor", "location_type"]]
+            .drop_duplicates()
+            .copy()
+        )
 
     def transform(self, df: pd.DataFrame) -> pd.DataFrame:
         columns = ["complaint_type", "descriptor", "location_type"]

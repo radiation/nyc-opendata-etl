@@ -1,12 +1,11 @@
 from datetime import datetime, timedelta
 from typing import Any
 
-from google.cloud import bigquery
 import pandas as pd
-from sodapy import Socrata  # type: ignore
+from sodapy import Socrata
 
-from config import load_config
 from config.env import NYC_API_TOKEN
+from etl.constants import PARKING_FACT_COLUMNS
 
 PARKING_DATASETS = {
     2014: "jt7v-77mi",
@@ -25,7 +24,10 @@ PARKING_DATASETS = {
 LATEST_FISCAL_YEAR = max(PARKING_DATASETS.keys())
 EARLIEST_FISCAL_YEAR = min(PARKING_DATASETS.keys())
 
-def get_parking_data_between(start: str, end: str, limit: int = 5000000) -> pd.DataFrame:
+
+def get_parking_data_between(
+    start: str, end: str, limit: int = 5000000
+) -> pd.DataFrame:
     if not NYC_API_TOKEN:
         raise ValueError("Missing NYC_API_TOKEN. Check your .env file.")
 
@@ -40,8 +42,7 @@ def get_parking_data_between(start: str, end: str, limit: int = 5000000) -> pd.D
         return pd.DataFrame()
 
     # Always use the latest dataset for current FY and recent data
-    if fiscal_year > LATEST_FISCAL_YEAR:
-        fiscal_year = LATEST_FISCAL_YEAR
+    fiscal_year = min(fiscal_year, LATEST_FISCAL_YEAR)
 
     resource_id = PARKING_DATASETS.get(fiscal_year)
 
@@ -50,8 +51,12 @@ def get_parking_data_between(start: str, end: str, limit: int = 5000000) -> pd.D
         return pd.DataFrame()
 
     where_clause = f"issue_date >= '{start}' AND issue_date < '{end}'"
-    print(f"Fetching parking data from {resource_id} (FY{fiscal_year}) between {start} and {end}")
-    results: list[dict[str, Any]] = client.get(resource_id, where=where_clause, limit=limit)
+    print(
+        f"Fetching parking data from {resource_id} (FY{fiscal_year}) between {start} and {end}"
+    )
+    results: list[dict[str, Any]] = client.get(
+        resource_id, where=where_clause, limit=limit
+    )
     return pd.DataFrame.from_records(results)
 
 
@@ -70,13 +75,16 @@ def clean_parking_data(df: pd.DataFrame) -> pd.DataFrame:
     df.columns = df.columns.str.strip().str.lower().str.replace(" ", "_")
 
     # Rename fields to match expected dim loader inputs
-    df.rename(columns={
-        "plate_id": "plate",
-        "registration_state": "state",
-        "plate_type": "license_type",
-        "violation_precinct": "precinct",
-        "violation_county": "borough"
-    }, inplace=True)
+    df.rename(
+        columns={
+            "plate_id": "plate",
+            "registration_state": "state",
+            "plate_type": "license_type",
+            "violation_precinct": "precinct",
+            "violation_county": "borough",
+        },
+        inplace=True,
+    )
 
     # Handle issue date and surrogate key
     if "issue_date" in df.columns:
@@ -116,42 +124,10 @@ def clean_parking_data(df: pd.DataFrame) -> pd.DataFrame:
     )
 
     if "summons_number" in df.columns:
-        df["summons_number"] = pd.to_numeric(df["summons_number"], errors="coerce").astype("Int64")
+        df["summons_number"] = pd.to_numeric(
+            df["summons_number"], errors="coerce"
+        ).astype("Int64")
 
-    keep_cols = [
-        # fact fields
-        "summons_number",
-        "Issue_Date", "Issue_Date_Key",
-        "Agency_Key", "Violation_Key", "Vehicle_Key", "Parking_Location_Key",
-        "Fine_Amount", "Penalty_Amount", "Interest_Amount",
-        "Reduction_Amount", "Payment_Amount", "Amount_Due",
-        
-        # dimension fields
-        "plate", "state", "license_type",
-        "violation_code", "violation_description",
-        "borough", "precinct",
-    ]
-
-    df = df[[col for col in keep_cols if col in df.columns]]
+    df = df[[c for c in PARKING_FACT_COLUMNS if c in df.columns]]
 
     return df
-
-
-def load_to_bigquery(df: pd.DataFrame) -> None:
-    cfg = load_config()
-    project = cfg["bigquery"]["project_id"]
-    dataset = cfg["bigquery"]["dataset"]
-    table_id = f"{project}.{dataset}.{cfg['tables']['fact_parking_tickets']}"
-
-    # Deduplicate columns
-    df = df.loc[:, ~df.columns.duplicated()]
-
-    # Explicit drop just in case
-    if "__join_key__" in df.columns:
-        df = df.drop(columns="__join_key__")
-
-    client = bigquery.Client()
-    job = client.load_table_from_dataframe(df, table_id)
-    job.result()
-
-    print(f"Loaded {df.shape[0]} rows to {table_id}")
