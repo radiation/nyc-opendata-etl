@@ -4,7 +4,6 @@ from typing import Optional, Tuple
 
 import pandas as pd
 
-from etl.constants import FACT_311_COLUMNS, LOCATION_DIM_COLUMNS, PARKING_FACT_COLUMNS
 from etl.core.bq_loader import load_df_to_bq
 from etl.core.dim_loader import DimLoaderProtocol
 from etl.core.key_mapper import assign_keys
@@ -137,7 +136,7 @@ def process_parking(
             ["borough", "precinct"],
             "Parking_Location_Key",
         )
-    df = df[[c for c in PARKING_FACT_COLUMNS if c in df.columns]]
+    df = df[[c for c in FACT_PARKING_COLUMNS if c in df.columns]]
     load_df_to_bq(cleaned_parking, "fact_parking_tickets")
     return df
 

@@ -4,6 +4,7 @@ import pandas as pd
 from sodapy import Socrata
 
 from config.env import NYC_API_TOKEN
+from etl.constants import FACT_311_COLUMNS
 from etl.core.utils import normalize_strings
 
 
@@ -48,35 +49,6 @@ def clean_311_data(raw_df: pd.DataFrame) -> pd.DataFrame:
         else:
             df[key_col] = pd.NA
 
-    # Trim to required columns
-    keep_cols = [
-        "unique_key",
-        "Created_Date",
-        "Closed_Date",
-        "Due_Date",
-        "Created_Date_Key",
-        "Closed_Date_Key",
-        "Due_Date_Key",
-        "agency",
-        "agency_name",
-        "complaint_type",
-        "descriptor",
-        "location_type",
-        "incident_zip",
-        "incident_address",
-        "street_name",
-        "cross_street_1",
-        "cross_street_2",
-        "intersection_street_1",
-        "intersection_street_2",
-        "city",
-        "borough",
-        "latitude",
-        "longitude",
-        "status",
-        "resolution_description",
-    ]
-
     if "unique_key" not in df.columns:
         raise ValueError(
             "Missing required column 'unique_key' in 311 data. "
@@ -105,6 +77,6 @@ def clean_311_data(raw_df: pd.DataFrame) -> pd.DataFrame:
         ],
     )
 
-    # Only keep columns that are present
-    available_cols = [col for col in keep_cols if col in df.columns]
-    return df[available_cols]
+    df = df[[c for c in FACT_311_COLUMNS if c in df.columns]]
+
+    return df

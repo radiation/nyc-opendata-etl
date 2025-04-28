@@ -5,7 +5,7 @@ import pandas as pd
 from sodapy import Socrata
 
 from config.env import NYC_API_TOKEN
-from etl.constants import PARKING_FACT_COLUMNS
+from etl.constants import FACT_PARKING_COLUMNS
 
 PARKING_DATASETS = {
     2014: "jt7v-77mi",
@@ -128,6 +128,6 @@ def clean_parking_data(df: pd.DataFrame) -> pd.DataFrame:
             df["summons_number"], errors="coerce"
         ).astype("Int64")
 
-    df = df[[c for c in PARKING_FACT_COLUMNS if c in df.columns]]
+    df = df[[c for c in FACT_PARKING_COLUMNS if c in df.columns]]
 
     return df
