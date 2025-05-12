@@ -48,7 +48,6 @@ def get_parking_data_between(start: str, end: str, limit: int = 5_000_000) -> pd
     clause = (
         f"issue_date >= '{start}' "
         f"AND issue_date < '{end}' "
-        f"AND violation_description IS NOT NULL"
     )
     print(f"Fetching parking FY{fy} from {resource} between {start}–{end}")
     recs: list[dict[str, Any]] = client.get(resource, where=clause, limit=limit)
@@ -74,20 +73,40 @@ def clean_parking_data(raw: pd.DataFrame) -> pd.DataFrame:
 
     # 3) parse times of form "09:03A" / "04:15P" ⇒ HH:MM:SS
     def parse_violation_time(s: Any) -> Any:
-        s = ("" if pd.isna(s) else str(s).strip().upper())
-        if len(s) and s[-1] in {"A", "P"}:
-            # turn "09:03A" → "09:03AM"
-            s2 = s[:-1] + s[-1] + "M"
-            try:
-                return pd.to_datetime(s2, format="%I:%M%p").time()
-            except ValueError:
-                return None
-        return None
+        """
+        Handle strings like "0853P" or "8:53A" or "12:05PM", returning a Python time.
+        """
+        if pd.isna(s):
+            return None
+        raw = str(s).strip().upper()
 
-    df["violation_time"] = df["violation_time"].apply(parse_violation_time)
-    df["time_key"] = df["violation_time"].apply(
-        lambda t: int(t.strftime("%H%M00")) if pd.notnull(t) else pd.NA
-    ).astype("Int64")
+        # Extract the AM/PM marker
+        if not raw or raw[-1] not in {"A", "P"}:
+            return None
+        ampm = raw[-1] + "M"  # turn "P" → "PM", "A"→"AM"
+
+        # Peel off the marker
+        core = raw[:-1]
+
+        # If there's no colon, insert one before the last two digits
+        if ":" not in core and len(core) in {3,4}:
+            hours = core[:-2]
+            mins  = core[-2:]
+            core = f"{hours.zfill(2)}:{mins}"
+
+        # Now core should be "H:MM" or "HH:MM"
+        ts = core + ampm  # e.g. "08:53PM"
+        try:
+            return pd.to_datetime(ts, format="%I:%M%p", errors="coerce").time()
+        except Exception:
+            return None
+
+    df["violation_time"] = df.get("violation_time").apply(parse_violation_time)
+    df["time_key"] = (
+        df["violation_time"]
+        .apply(lambda t: int(t.strftime("%H%M00")) if pd.notnull(t) else pd.NA)
+        .astype("Int64")
+    )
 
     # 4) normalize the fields we'll hash for location_key
     loc_cols = [
@@ -107,6 +126,7 @@ def clean_parking_data(raw: pd.DataFrame) -> pd.DataFrame:
     if "violation_description" not in df.columns:
         df["violation_description"] = pd.NA
 
+    '''
     target = [
         "summons_number",        # string ID
         "plate_id",              # raw plate
@@ -122,10 +142,14 @@ def clean_parking_data(raw: pd.DataFrame) -> pd.DataFrame:
         "issuer_command",        # raw issuer_command
         "vehicle_body_type",     # raw vehicle_body_type
         "vehicle_make",          # raw vehicle_make
+        "parking_location_key",  # FK → dim_parking_location
+        "vehicle_key",           # FK → dim_vehicle
+        "violation_key",         # FK → dim_violation
     ]
+
     # only keep columns that actually exist
     df = df[[c for c in target if c in df.columns]]
-
+    '''
     return df
 
 

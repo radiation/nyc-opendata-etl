@@ -75,8 +75,8 @@ def clean_311_data(raw_df: pd.DataFrame) -> pd.DataFrame:
     target_cols = [
         "unique_key",
         "created_timestamp", "closed_timestamp",
-        "agency", "agency_name",
-        "complaint_type", "descriptor", "location_type",
+        "agency", "agency_name", "agency_key"
+        "complaint_type", "coompalint_key", "descriptor", "location_type",
         "incident_zip", "incident_address", "street_name",
         "cross_street_1", "cross_street_2",
         "intersection_street_1", "intersection_street_2",
@@ -89,7 +89,7 @@ def clean_311_data(raw_df: pd.DataFrame) -> pd.DataFrame:
         "bridge_highway_name", "bridge_highway_direction",
         "road_ramp", "bridge_highway_segment",
         "latitude", "longitude", "location",
-        "complaint_time", "time_key", "date_key"
+        "complaint_time", "time_key", "date_key", "location_key"
     ]
     available = [c for c in target_cols if c in df.columns]
     return df[available]
