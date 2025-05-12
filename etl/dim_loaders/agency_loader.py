@@ -13,5 +13,5 @@ class AgencyDimLoader(BaseDimLoader):
     def transform(self, df: pd.DataFrame) -> pd.DataFrame:
         columns = ["agency", "agency_name"]
         df = normalize_strings(df, columns)
-        df["Agency_Key"] = df.apply(lambda row: hash_key(row, columns), axis=1)
-        return df[["Agency_Key"] + columns]
+        df["agency_key"] = df.apply(lambda row: hash_key(row, columns), axis=1)
+        return df[["agency_key"] + columns]
