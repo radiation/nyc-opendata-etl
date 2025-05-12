@@ -24,6 +24,7 @@ from etl.dim_loaders.violation_loader import ViolationDimLoader
 from etl.dim_loaders.parking_location_loader import ParkingLocationDimLoader
 from etl.dim_loaders.date_loader import DateDimLoader
 from etl.dim_loaders.time_loader import TimeDimLoader
+from etl.core.utils import normalize_strings
 
 
 def load_date_and_time_dims() -> None:
@@ -77,11 +78,19 @@ def main(start: str | None = None, end: str | None = None) -> None:
         raw_311 = get_yesterdays_311_data()
         raw_parking = get_yesterdays_parking_data()
 
+    print("▶ raw_parking.shape:", raw_parking.shape)
+    print("▶ raw_parking.columns:", raw_parking.columns.tolist())
+    print(raw_parking.head(3).T, "\n")
+
     # Load dimensions and keep them in memory for FK resolution
     dim_data = load_dimensions(raw_311, raw_parking)
 
     cleaned_311 = clean_311_data(raw_311) if not raw_311.empty else pd.DataFrame()
     cleaned_parking = clean_parking_data(raw_parking) if not raw_parking.empty else pd.DataFrame()
+
+    print("▶ cleaned_parking.shape:", cleaned_parking.shape)
+    print("▶ cleaned_parking.columns:", cleaned_parking.columns.tolist())
+    print(cleaned_parking.head(3).T, "\n")
 
     # Assign foreign keys to fact_311
     if not cleaned_311.empty:
@@ -111,11 +120,19 @@ def main(start: str | None = None, end: str | None = None) -> None:
         )
         if "__join_key__" in cleaned_311.columns:
             cleaned_311 = cleaned_311.drop(columns="__join_key__")
-        load_311_fact(cleaned_311)
+        
+        fact_311_cols = [
+            "unique_key",
+            "date_key", "time_key",
+            "agency_key", "complaint_key", "location_key",
+            "resolution_action_date", "due_date", "closed_timestamp"
+        ]
+        fact_311 = cleaned_311[[c for c in fact_311_cols if c in cleaned_311.columns]]
+
+        load_311_fact(fact_311)
 
     # Assign foreign keys to fact_parking
     if not cleaned_parking.empty:
-        print(">>> cleaned_parking.columns:", cleaned_parking.columns.tolist())
         # 1) compute keys
         cleaned_parking["date_key"] = (
             cleaned_parking["issue_date"]
@@ -133,6 +150,12 @@ def main(start: str | None = None, end: str | None = None) -> None:
             "registration_state": "state",
             "plate_type": "license_type"
         }, inplace=True)
+        # 1) Normalize the vehicle key fields exactly like your VehicleDimLoader
+        cleaned_parking = normalize_strings(
+            cleaned_parking,
+            ["plate", "state", "license_type"]
+        )
+
         cleaned_parking = assign_keys(
             cleaned_parking,
             dim_data["vehicle"],
@@ -140,7 +163,28 @@ def main(start: str | None = None, end: str | None = None) -> None:
             "vehicle_key"
         )
 
-        load_parking_fact(cleaned_parking)
+        # 2) Cast violation_code to int64 so it matches dim_violation
+        cleaned_parking["violation_code"] = (
+            pd.to_numeric(cleaned_parking["violation_code"], errors="coerce")
+            .astype("Int64")    # or .astype("int64") if you dropped nullable
+        )
+
+        cleaned_parking = assign_keys(
+            cleaned_parking,
+            dim_data["violation"],
+            ["violation_code"],
+            "violation_key"
+        )
+        fact_parking_cols = [
+            "summons_number",
+            "date_key", "time_key",
+            "violation_code",
+            "location_key",
+            "vehicle_key",
+        ]
+        fact_parking = cleaned_parking[[c for c in fact_parking_cols if c in cleaned_parking.columns]]
+
+        load_parking_fact(fact_parking)
 
     print("ETL complete!")
 
