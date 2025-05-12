@@ -9,12 +9,12 @@ class DateDimLoader(BaseDimLoader):
 
     def generate_date_range(self, start_date: datetime, end_date: datetime) -> pd.DataFrame:
         dates = pd.date_range(start=start_date, end=end_date)
-        df = pd.DataFrame({"Full_Date": dates})
-        df["Date_Key"] = df["Full_Date"].dt.strftime("%Y%m%d").astype(int)
-        df["Day"] = df["Full_Date"].dt.day
-        df["Month"] = df["Full_Date"].dt.month
-        df["Year"] = df["Full_Date"].dt.year
-        df["Weekday"] = df["Full_Date"].dt.day_name()
+        df = pd.DataFrame({"full_date": dates})
+        df["date_key"] = df["full_date"].dt.strftime("%Y%m%d").astype(int)
+        df["day"]      = df["full_date"].dt.day
+        df["month"]    = df["full_date"].dt.month
+        df["year"]     = df["full_date"].dt.year
+        df["weekday"]  = df["full_date"].dt.day_name()
         return df[
-            ["Date_Key", "Full_Date", "Day", "Month", "Year", "Weekday"]
+            ["date_key", "full_date", "day", "month", "year", "weekday"]
         ]

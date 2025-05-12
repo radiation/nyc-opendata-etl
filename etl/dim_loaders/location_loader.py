@@ -40,8 +40,8 @@ class LocationDimLoader(BaseDimLoader):
         df["longitude"] = pd.to_numeric(df["longitude"], errors="coerce")
 
         # Hash based only on string columns (not lat/lon)
-        df["Location_Key"] = df.apply(lambda row: hash_key(row, string_columns), axis=1)
+        df["location_key"] = df.apply(lambda row: hash_key(row, string_columns), axis=1)
 
         return df[
-            ["Location_Key"] + string_columns + ["latitude", "longitude"]
+            ["location_key"] + string_columns + ["latitude", "longitude"]
         ]

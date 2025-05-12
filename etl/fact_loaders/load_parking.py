@@ -1,12 +1,12 @@
 from typing import Any
 from datetime import datetime, timedelta
-
 import pandas as pd
-from sodapy import Socrata # type: ignore
+from sodapy import Socrata  # type: ignore
 from google.cloud import bigquery
 from config.env import NYC_API_TOKEN
 from config import load_config
 
+from etl.core.utils import normalize_strings, hash_key
 
 PARKING_DATASETS = {
     2014: "jt7v-77mi",
@@ -21,118 +21,110 @@ PARKING_DATASETS = {
     2023: "869v-vr48",
     2024: "pvqr-7yc4",
 }
-
-LATEST_FISCAL_YEAR = max(PARKING_DATASETS.keys())
-EARLIEST_FISCAL_YEAR = min(PARKING_DATASETS.keys())
-
-def get_parking_data_between(start: str, end: str, limit: int = 5000000) -> pd.DataFrame:
-    if not NYC_API_TOKEN:
-        raise ValueError("Missing NYC_API_TOKEN. Check your .env file.")
-
-    client = Socrata("data.cityofnewyork.us", NYC_API_TOKEN)
-    start_date = datetime.strptime(start[:10], "%Y-%m-%d")
-
-    # NYC fiscal year starts July 1st
-    fiscal_year = start_date.year if start_date.month < 7 else start_date.year + 1
-
-    if fiscal_year < EARLIEST_FISCAL_YEAR:
-        print(f"Skipping parking load — data unavailable for fiscal year {fiscal_year}")
-        return pd.DataFrame()
-
-    # Always use the latest dataset for current FY and recent data
-    if fiscal_year > LATEST_FISCAL_YEAR:
-        fiscal_year = LATEST_FISCAL_YEAR
-
-    resource_id = PARKING_DATASETS.get(fiscal_year)
-
-    if not resource_id:
-        print(f"No dataset found for fiscal year {fiscal_year}")
-        return pd.DataFrame()
-
-    where_clause = f"issue_date >= '{start}' AND issue_date < '{end}'"
-    print(f"Fetching parking data from {resource_id} (FY{fiscal_year}) between {start} and {end}")
-    results: list[dict[str, Any]] = client.get(resource_id, where=where_clause, limit=limit)
-    return pd.DataFrame.from_records(results)
+LATEST_FY = max(PARKING_DATASETS)
+EARLIEST_FY = min(PARKING_DATASETS)
 
 
-def get_yesterdays_parking_data() -> pd.DataFrame:
-    if not NYC_API_TOKEN:
-        raise ValueError("Missing NYC_API_TOKEN. Check your .env file.")
-
+def get_yesterdays_parking_data():
     today = datetime.utcnow().date()
     start = f"{today - timedelta(days=1)}T00:00:00.000"
     end = f"{today}T00:00:00.000"
     return get_parking_data_between(start, end)
 
 
-def clean_parking_data(df: pd.DataFrame) -> pd.DataFrame:
-    df = df.copy()
-    df.columns = df.columns.str.strip().str.lower().str.replace(" ", "_")
+def get_parking_data_between(start: str, end: str, limit: int = 5_000_000) -> pd.DataFrame:
+    if not NYC_API_TOKEN:
+        raise ValueError("Missing NYC_API_TOKEN. Check your .env file.")
 
-    # Rename fields to match expected dim loader inputs
-    df.rename(columns={
-        "plate_id": "plate",
-        "registration_state": "state",
-        "plate_type": "license_type",
-        "violation_precinct": "precinct",
-        "violation_county": "borough"
-    }, inplace=True)
+    client = Socrata("data.cityofnewyork.us", NYC_API_TOKEN)
+    start_dt = datetime.strptime(start[:10], "%Y-%m-%d")
+    fy = start_dt.year if start_dt.month < 7 else start_dt.year + 1
+    if fy < EARLIEST_FY:
+        return pd.DataFrame()
 
-    # Handle issue date and surrogate key
-    if "issue_date" in df.columns:
-        df["Issue_Date"] = pd.to_datetime(df["issue_date"], errors="coerce")
-        df["Issue_Date_Key"] = df["Issue_Date"].dt.strftime("%Y%m%d").astype("Int64")
-    else:
-        df["Issue_Date"] = pd.NaT
-        df["Issue_Date_Key"] = pd.NA
+    if fy > LATEST_FY:
+        fy = LATEST_FY
+    resource = PARKING_DATASETS[fy]
+    clause = (
+        f"issue_date >= '{start}' "
+        f"AND issue_date < '{end}' "
+        f"AND violation_description IS NOT NULL"
+    )
+    print(f"Fetching parking FY{fy} from {resource} between {start}–{end}")
+    recs: list[dict[str, Any]] = client.get(resource, where=clause, limit=limit)
+    print(f"Fetched {len(recs)} records from {resource} between {start}–{end}")
+    return pd.DataFrame.from_records(recs)
 
-    # Ensure numeric fields are present and properly typed
-    numeric_cols = [
-        "fine_amount",
-        "penalty_amount",
-        "interest_amount",
-        "reduction_amount",
-        "payment_amount",
-        "amount_due",
-    ]
 
-    for col in numeric_cols:
-        if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
-        else:
-            df[col] = 0
+def clean_parking_data(raw: pd.DataFrame) -> pd.DataFrame:
 
-    # Rename to match BigQuery schema
-    df.rename(
-        columns={
-            "fine_amount": "Fine_Amount",
-            "penalty_amount": "Penalty_Amount",
-            "interest_amount": "Interest_Amount",
-            "reduction_amount": "Reduction_Amount",
-            "payment_amount": "Payment_Amount",
-            "amount_due": "Amount_Due",
-        },
-        inplace=True,
+    df = raw.copy()
+
+    # 1) normalize column names
+    df.columns = (
+        df.columns
+        .str.strip()
+        .str.lower()
+        .str.replace(r"\s+", "_", regex=True)
     )
 
-    if "summons_number" in df.columns:
-        df["summons_number"] = pd.to_numeric(df["summons_number"], errors="coerce").astype("Int64")
+    # 2) parse dates
+    df["issue_date"] = pd.to_datetime(df["issue_date"], errors="coerce")
+    df["date_key"] = (df["issue_date"].dt.strftime("%Y%m%d").astype("Int64"))
 
-    keep_cols = [
-        # fact fields
-        "summons_number",
-        "Issue_Date", "Issue_Date_Key",
-        "Agency_Key", "Violation_Key", "Vehicle_Key", "Parking_Location_Key",
-        "Fine_Amount", "Penalty_Amount", "Interest_Amount",
-        "Reduction_Amount", "Payment_Amount", "Amount_Due",
-        
-        # dimension fields
-        "plate", "state", "license_type",
-        "violation_code", "violation_description",
-        "borough", "precinct",
+    # 3) parse times of form "09:03A" / "04:15P" ⇒ HH:MM:SS
+    def parse_violation_time(s: Any) -> Any:
+        s = ("" if pd.isna(s) else str(s).strip().upper())
+        if len(s) and s[-1] in {"A", "P"}:
+            # turn "09:03A" → "09:03AM"
+            s2 = s[:-1] + s[-1] + "M"
+            try:
+                return pd.to_datetime(s2, format="%I:%M%p").time()
+            except ValueError:
+                return None
+        return None
+
+    df["violation_time"] = df["violation_time"].apply(parse_violation_time)
+    df["time_key"] = df["violation_time"].apply(
+        lambda t: int(t.strftime("%H%M00")) if pd.notnull(t) else pd.NA
+    ).astype("Int64")
+
+    # 4) normalize the fields we'll hash for location_key
+    loc_cols = [
+        "house_number",
+        "street_name",
+        "intersecting_street",
+        "violation_county",
+        "violation_precinct",
     ]
+    df = normalize_strings(df, loc_cols)
+    df = df.dropna(subset=loc_cols)
+    df["location_key"] = df.apply(lambda r: hash_key(r, loc_cols), axis=1)
 
-    df = df[[col for col in keep_cols if col in df.columns]]
+    # 5) select and rename exactly what the fact_parking_tickets table expects:
+
+    df["violation_code"] = pd.to_numeric(df["violation_code"], errors="coerce").astype("Int64")
+    if "violation_description" not in df.columns:
+        df["violation_description"] = pd.NA
+
+    target = [
+        "summons_number",        # string ID
+        "plate_id",              # raw plate
+        "registration_state",    # raw state
+        "plate_type",            # raw license_type
+        "issue_date",            # DATE
+        "violation_time",        # TIME
+        "date_key",              # INT YYYYMMDD
+        "time_key",              # INT HHMM00
+        "violation_code",        # natural key
+        "violation_description", # raw description
+        "location_key",          # FK → dim_parking_location
+        "issuer_command",        # raw issuer_command
+        "vehicle_body_type",     # raw vehicle_body_type
+        "vehicle_make",          # raw vehicle_make
+    ]
+    # only keep columns that actually exist
+    df = df[[c for c in target if c in df.columns]]
 
     return df
 
@@ -141,14 +133,8 @@ def load_to_bigquery(df: pd.DataFrame) -> None:
     cfg = load_config()
     project = cfg["bigquery"]["project_id"]
     dataset = cfg["bigquery"]["dataset"]
-    table_id = f"{project}.{dataset}.{cfg['tables']['fact_parking_tickets']}"
-
-    # Deduplicate columns
-    df = df.loc[:, ~df.columns.duplicated()]
-
-    # Explicit drop just in case
-    if "__join_key__" in df.columns:
-        df = df.drop(columns="__join_key__")
+    table = cfg["tables"]["fact_parking_tickets"]
+    table_id = f"{project}.{dataset}.{table}"
 
     client = bigquery.Client()
     job = client.load_table_from_dataframe(df, table_id)

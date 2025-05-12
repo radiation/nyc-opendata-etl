@@ -12,5 +12,5 @@ def normalize_strings(df: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
     df = df.copy()
     for col in columns:
         if col in df.columns:
-            df[col] = df[col].fillna("").astype(str).str.strip().str.upper()
+            df[col] = df[col].fillna("").astype(str).str.strip().str.lower()
     return df
