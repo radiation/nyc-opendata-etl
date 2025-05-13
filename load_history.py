@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 import subprocess
 
-START = datetime(2010, 1, 1)
+START = datetime(2013, 7, 1)
 TODAY = datetime.today()
 current = START
 
