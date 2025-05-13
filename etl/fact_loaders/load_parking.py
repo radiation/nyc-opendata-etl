@@ -52,8 +52,20 @@ def get_parking_data_between(start: str, end: str, limit: int = 5_000_000) -> pd
     print(f"Fetching parking FY{fy} from {resource} between {start}–{end}")
     recs: list[dict[str, Any]] = client.get(resource, where=clause, limit=limit)
     print(f"Fetched {len(recs)} records from {resource} between {start}–{end}")
-    return pd.DataFrame.from_records(recs)
+    df = pd.DataFrame.from_records(recs)
 
+    # Normalize Socrata’s column names to lower+underscores
+    df.columns = (
+        df.columns
+          .str.strip()
+          .str.lower()
+          .str.replace(r"\s+", "_", regex=True)
+    )
+    # Socrata FY tables call the code “violation”, not “violation_code”
+    if "violation" in df.columns and "violation_code" not in df.columns:
+        df.rename(columns={"violation": "violation_code"}, inplace=True)
+
+    return df
 
 def clean_parking_data(raw: pd.DataFrame) -> pd.DataFrame:
 
@@ -120,36 +132,13 @@ def clean_parking_data(raw: pd.DataFrame) -> pd.DataFrame:
     df = df.dropna(subset=loc_cols)
     df["location_key"] = df.apply(lambda r: hash_key(r, loc_cols), axis=1)
 
-    # 5) select and rename exactly what the fact_parking_tickets table expects:
+    if "violation_code" not in df.columns and "violation" in df.columns:
+        df = df.rename(columns={"violation": "violation_code"})
 
     df["violation_code"] = pd.to_numeric(df["violation_code"], errors="coerce").astype("Int64")
     if "violation_description" not in df.columns:
         df["violation_description"] = pd.NA
 
-    '''
-    target = [
-        "summons_number",        # string ID
-        "plate_id",              # raw plate
-        "registration_state",    # raw state
-        "plate_type",            # raw license_type
-        "issue_date",            # DATE
-        "violation_time",        # TIME
-        "date_key",              # INT YYYYMMDD
-        "time_key",              # INT HHMM00
-        "violation_code",        # natural key
-        "violation_description", # raw description
-        "location_key",          # FK → dim_parking_location
-        "issuer_command",        # raw issuer_command
-        "vehicle_body_type",     # raw vehicle_body_type
-        "vehicle_make",          # raw vehicle_make
-        "parking_location_key",  # FK → dim_parking_location
-        "vehicle_key",           # FK → dim_vehicle
-        "violation_key",         # FK → dim_violation
-    ]
-
-    # only keep columns that actually exist
-    df = df[[c for c in target if c in df.columns]]
-    '''
     return df
 
 

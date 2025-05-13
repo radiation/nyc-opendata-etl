@@ -46,6 +46,7 @@ def clean_311_data(raw_df: pd.DataFrame) -> pd.DataFrame:
         else:
             df[new_col] = pd.NaT
 
+
     # 2) Compute our new date_key, complaint_time, and time_key from created_timestamp
     df["date_key"] = df["created_timestamp"].dt.strftime("%Y%m%d").astype("Int64")
     df["complaint_time"] = df["created_timestamp"].dt.time
@@ -75,8 +76,8 @@ def clean_311_data(raw_df: pd.DataFrame) -> pd.DataFrame:
     target_cols = [
         "unique_key",
         "created_timestamp", "closed_timestamp",
-        "agency", "agency_name", "agency_key"
-        "complaint_type", "coompalint_key", "descriptor", "location_type",
+        "agency", "agency_name", "agency_key",
+        "complaint_type", "complaint_key", "descriptor", "location_type",
         "incident_zip", "incident_address", "street_name",
         "cross_street_1", "cross_street_2",
         "intersection_street_1", "intersection_street_2",
