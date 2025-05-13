@@ -46,6 +46,21 @@ def clean_311_data(raw_df: pd.DataFrame) -> pd.DataFrame:
         else:
             df[new_col] = pd.NaT
 
+    # safely build created_date_key and created_time_key
+    df["created_date_key"] = df["created_timestamp"].apply(
+        lambda ts: int(ts.strftime("%Y%m%d")) if pd.notnull(ts) else pd.NA
+    ).astype("Int64")
+    df["created_time_key"] = df["created_timestamp"].apply(
+        lambda ts: int(ts.strftime("%H%M00")) if pd.notnull(ts) else pd.NA
+    ).astype("Int64")
+
+    # safely build closed_date_key and closed_time_key
+    df["closed_date_key"] = df["closed_timestamp"].apply(
+        lambda ts: int(ts.strftime("%Y%m%d")) if pd.notnull(ts) else pd.NA
+    ).astype("Int64")
+    df["closed_time_key"] = df["closed_timestamp"].apply(
+        lambda ts: int(ts.strftime("%H%M00")) if pd.notnull(ts) else pd.NA
+    ).astype("Int64")
 
     # 2) Compute our new date_key, complaint_time, and time_key from created_timestamp
     df["date_key"] = df["created_timestamp"].dt.strftime("%Y%m%d").astype("Int64")
@@ -75,22 +90,9 @@ def clean_311_data(raw_df: pd.DataFrame) -> pd.DataFrame:
     # 5) Select exactly the cols your BQ table expects:
     target_cols = [
         "unique_key",
-        "created_timestamp", "closed_timestamp",
-        "agency", "agency_name", "agency_key",
-        "complaint_type", "complaint_key", "descriptor", "location_type",
-        "incident_zip", "incident_address", "street_name",
-        "cross_street_1", "cross_street_2",
-        "intersection_street_1", "intersection_street_2",
-        "address_type", "city", "borough", "landmark", "facility_type",
-        "status", "due_date", "resolution_description", "resolution_action_date",
-        "community_board", "bbl",
-        "x_coordinate", "y_coordinate",
-        "open_data_channel", "park_facility_name", "park_borough",
-        "vehicle_type", "taxi_company_borough", "taxi_pickup_location",
-        "bridge_highway_name", "bridge_highway_direction",
-        "road_ramp", "bridge_highway_segment",
-        "latitude", "longitude", "location",
-        "complaint_time", "time_key", "date_key", "location_key"
+        "created_date_key", "created_time_key",
+        "closed_date_key",  "closed_time_key",
+        "agency_key", "complaint_key", "location_key"
     ]
     available = [c for c in target_cols if c in df.columns]
     return df[available]

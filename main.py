@@ -100,11 +100,7 @@ def main(start: Optional[str] = None, end: Optional[str] = None) -> None:
 
     # ── 311 FACT ────────────────────────────────────────────────────────────────
     cleaned_311 = clean_311_data(raw_311) if not raw_311.empty else pd.DataFrame()
-    '''
-    print("raw_311: ", raw_311.shape)
-    print("raw_311: ", raw_311.columns)
-    print("cleaned_311: ", cleaned_311.shape)
-    print("cleaned_311: ", cleaned_311.columns)'''
+
     if not cleaned_311.empty:
         # stamp FK columns
         cleaned_311 = assign_keys(
@@ -123,7 +119,7 @@ def main(start: Optional[str] = None, end: Optional[str] = None) -> None:
         cleaned_311 = assign_keys(
             cleaned_311,
             dim_data["complaint"],
-            ["complaint_type", "descriptor"],
+            ["complaint_type", "descriptor", "location_type"],
             "complaint_key",
         )
         cleaned_311 = assign_keys(
@@ -140,7 +136,9 @@ def main(start: Optional[str] = None, end: Optional[str] = None) -> None:
 
         # slice to your fact schema
         fact_311_cols = [
-            "unique_key", "date_key", "time_key",
+            "unique_key",
+            "created_date_key", "created_time_key",
+            "closed_date_key", "closed_time_key",
             "agency_key", "complaint_key", "location_key",
             "resolution_action_date", "due_date", "closed_timestamp",
         ]
