@@ -61,7 +61,6 @@ def clean_311_data(raw_df: pd.DataFrame) -> pd.DataFrame:
     df["closed_time_key"] = df["closed_timestamp"].apply(
         lambda ts: int(ts.strftime("%H%M00")) if pd.notnull(ts) else pd.NA
     ).astype("Int64")
-
     # 2) Compute our new date_key, complaint_time, and time_key from created_timestamp
     df["date_key"] = df["created_timestamp"].dt.strftime("%Y%m%d").astype("Int64")
     df["complaint_time"] = df["created_timestamp"].dt.time
@@ -72,7 +71,6 @@ def clean_311_data(raw_df: pd.DataFrame) -> pd.DataFrame:
     if "unique_key" not in df.columns:
         raise ValueError("Missing required column 'unique_key' in 311 data")
     df["unique_key"] = df["unique_key"].astype(str)
-
     # 4) Standardize all our descriptive columns to lowercase & trim
     norm_cols = [
         "agency", "agency_name", "complaint_type", "descriptor", "location_type",
@@ -90,9 +88,23 @@ def clean_311_data(raw_df: pd.DataFrame) -> pd.DataFrame:
     # 5) Select exactly the cols your BQ table expects:
     target_cols = [
         "unique_key",
+        "agency", "agency_name", "agency_key",
         "created_date_key", "created_time_key",
-        "closed_date_key",  "closed_time_key",
-        "agency_key", "complaint_key", "location_key"
+        "closed_date_key", "closed_time_key",
+        "complaint_type", "complaint_key", "descriptor", "location_type",
+        "incident_zip", "incident_address", "street_name",
+        "cross_street_1", "cross_street_2",
+        "intersection_street_1", "intersection_street_2",
+        "address_type", "city", "borough", "landmark", "facility_type",
+        "status", "resolution_description",
+        "community_board", "bbl",
+        "x_coordinate", "y_coordinate",
+        "open_data_channel", "park_facility_name", "park_borough",
+        "vehicle_type", "taxi_company_borough", "taxi_pickup_location",
+        "bridge_highway_name", "bridge_highway_direction",
+        "road_ramp", "bridge_highway_segment",
+        "latitude", "longitude", "location",
+        "complaint_time", "time_key", "date_key", "location_key"
     ]
     available = [c for c in target_cols if c in df.columns]
     return df[available]
