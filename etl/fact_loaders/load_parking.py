@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Optional
 from datetime import datetime, timedelta
 import pandas as pd
 from sodapy import Socrata  # type: ignore
@@ -84,39 +84,36 @@ def clean_parking_data(raw: pd.DataFrame) -> pd.DataFrame:
     df["date_key"] = (df["issue_date"].dt.strftime("%Y%m%d").astype("Int64"))
 
     # 3) parse times of form "09:03A" / "04:15P" ⇒ HH:MM:SS
-    def parse_violation_time(s: Any) -> Any:
+    def parse_violation_time(s: Any) -> Optional[datetime.time]:
         """
-        Handle strings like "0853P" or "8:53A" or "12:05PM", returning a Python time.
+        Handle strings like "0853P", "8:53A", "12:05PM", returning a Python time or None.
         """
         if pd.isna(s):
             return None
         raw = str(s).strip().upper()
-
-        # Extract the AM/PM marker
         if not raw or raw[-1] not in {"A", "P"}:
             return None
-        ampm = raw[-1] + "M"  # turn "P" → "PM", "A"→"AM"
 
-        # Peel off the marker
-        core = raw[:-1]
+        ampm = raw[-1] + "M"              # "P" -> "PM", "A" -> "AM"
+        core = raw[:-1]                   # strip off the marker
 
-        # If there's no colon, insert one before the last two digits
-        if ":" not in core and len(core) in {3,4}:
+        # insert colon if missing (e.g. "0853" -> "08:53")
+        if ":" not in core and len(core) in {3, 4}:
             hours = core[:-2]
             mins  = core[-2:]
-            core = f"{hours.zfill(2)}:{mins}"
+            core  = f"{hours.zfill(2)}:{mins}"
 
-        # Now core should be "H:MM" or "HH:MM"
-        ts = core + ampm  # e.g. "08:53PM"
-        try:
-            return pd.to_datetime(ts, format="%I:%M%p", errors="coerce").time()
-        except Exception:
+        ts_str = core + ampm              # e.g. "08:53PM"
+        parsed = pd.to_datetime(ts_str, format="%I:%M%p", errors="coerce")
+        if pd.isna(parsed):
             return None
+        return parsed.time()
 
-    df["violation_time"] = df.get("violation_time").apply(parse_violation_time)
+
+    df["violation_time"] = df["violation_time"].apply(parse_violation_time)
     df["time_key"] = (
         df["violation_time"]
-        .apply(lambda t: int(t.strftime("%H%M00")) if pd.notnull(t) else pd.NA)
+        .apply(lambda t: int(t.strftime("%H%M00")) if t else pd.NA)
         .astype("Int64")
     )
 
