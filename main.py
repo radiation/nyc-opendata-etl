@@ -1,172 +1,211 @@
-from datetime import datetime, timedelta
 import argparse
+from datetime import datetime, timedelta
+from typing import Optional
+
 import pandas as pd
 
-from etl.fact_loaders.load_311 import (
-    get_311_data_between, 
-    get_yesterdays_311_data, 
-    clean_311_data, 
-    load_to_bigquery as load_311_fact
-)
-from etl.fact_loaders.load_integrated_fact import load_to_bigquery as load_integrated_fact
-from etl.fact_loaders.load_parking import (
-    get_parking_data_between,
-    get_yesterdays_parking_data, 
-    clean_parking_data, 
-    load_to_bigquery as load_parking_fact
-)
-from etl.core.key_mapper import assign_keys
-
-from etl.dim_loaders.agency_loader import AgencyDimLoader
-from etl.dim_loaders.complaint_loader import ComplaintDimLoader
-from etl.dim_loaders.location_loader import LocationDimLoader
-from etl.dim_loaders.vehicle_loader import VehicleDimLoader
-from etl.dim_loaders.violation_loader import ViolationDimLoader
-from etl.dim_loaders.parking_location_loader import ParkingLocationDimLoader
+from etl.core.bq_loader import load_df_to_bq
+from etl.core.socrata_loader import fetch_from_socrata, fetch_parking_from_socrata
+from etl.dim_loader import GenericDimLoader
 from etl.dim_loaders.date_loader import DateDimLoader
+from etl.specs.dimensions import (
+    AGENCY_NATURAL_KEYS,
+    AGENCY_SPECS,
+    AGENCY_TABLE,
+    COMPLAINT_NATURAL_KEYS,
+    COMPLAINT_SPECS,
+    COMPLAINT_TABLE,
+    DIMENSION_CONFIGS,
+    LOCATION_NATURAL_KEYS,
+    LOCATION_SPECS,
+    LOCATION_TABLE,
+    PARKING_LOCATION_NATURAL_KEYS,
+    PARKING_LOCATION_SPECS,
+    PARKING_LOCATION_TABLE,
+    VEHICLE_NATURAL_KEYS,
+    VEHICLE_SPECS,
+    VEHICLE_TABLE,
+    VIOLATION_NATURAL_KEYS,
+    VIOLATION_SPECS,
+    VIOLATION_TABLE,
+)
+from etl.specs.facts import (
+    DATASET_311,
+    DATASETS_PARKING,
+    FACT_INT_TABLE,
+    fact_311_loader,
+    fact_parking_loader,
+)
+
+DIM_LOADERS: list[GenericDimLoader] = [
+    GenericDimLoader(
+        "agency", AGENCY_SPECS, AGENCY_NATURAL_KEYS, "agency_key", AGENCY_TABLE
+    ),
+    GenericDimLoader(
+        "complaint",
+        COMPLAINT_SPECS,
+        COMPLAINT_NATURAL_KEYS,
+        "complaint_key",
+        COMPLAINT_TABLE,
+    ),
+    GenericDimLoader(
+        "location",
+        LOCATION_SPECS,
+        LOCATION_NATURAL_KEYS,
+        "location_key",
+        LOCATION_TABLE,
+    ),
+    GenericDimLoader(
+        "vehicle", VEHICLE_SPECS, VEHICLE_NATURAL_KEYS, "vehicle_key", VEHICLE_TABLE
+    ),
+    GenericDimLoader(
+        "violation",
+        VIOLATION_SPECS,
+        VIOLATION_NATURAL_KEYS,
+        "violation_key",
+        VIOLATION_TABLE,
+    ),
+    GenericDimLoader(
+        "parking_location",
+        PARKING_LOCATION_SPECS,
+        PARKING_LOCATION_NATURAL_KEYS,
+        "parking_location_key",
+        PARKING_LOCATION_TABLE,
+    ),
+]
+
 
 def load_date_dim() -> None:
-    date_loader = DateDimLoader()
+    loader = DateDimLoader("dim_date")
     today = datetime.today()
     start_date = datetime(2010, 1, 1)
     end_date = today + timedelta(days=365)
+    loader.run(start_date, end_date)
 
-    df = date_loader.generate_date_range(start_date, end_date)
-    date_loader.load(df)
 
-def load_dimensions(df_311: pd.DataFrame, df_parking: pd.DataFrame) -> dict[str, pd.DataFrame]:
-    loaders = {
-        "agency": (AgencyDimLoader(), pd.concat([df_311, df_parking], ignore_index=True)),
-        "complaint": (ComplaintDimLoader(), df_311),
-        "location": (LocationDimLoader(), df_311),
-        # Only include the transformed df if it's non-empty
-        "vehicle": (VehicleDimLoader(), df_parking if not df_parking.empty else pd.DataFrame()),
-        "violation": (ViolationDimLoader(), df_parking if not df_parking.empty else pd.DataFrame()),
-        "parking_location": (ParkingLocationDimLoader(), df_parking if not df_parking.empty else pd.DataFrame()),
+def load_dimensions(
+    df_311: pd.DataFrame, df_parking: pd.DataFrame
+) -> dict[str, pd.DataFrame]:
+    # map each dimension name to its raw source slice
+    src_map: dict[str, pd.DataFrame] = {
+        "agency": pd.concat([df_311, df_parking], ignore_index=True),
+        "complaint": df_311,
+        "location": df_311,
+        "vehicle": df_parking,
+        "violation": df_parking,
+        "parking_location": df_parking,
     }
 
-    transformed_dfs = {}
+    transformed: dict[str, pd.DataFrame] = {}
 
-    for name, (loader, source_df) in loaders.items():
-        print(f"\nRunning {loader.__class__.__name__}...")
-        extracted = loader.extract(source_df)
-        if extracted.empty:
-            print(f"No data to load into {loader.table_id}")
-        else:
-            transformed = loader.transform(extracted)
-            loader.load(transformed)
-            transformed_dfs[name] = transformed
+    for name, specs, nat_keys, key_name, bq_table in DIMENSION_CONFIGS:
+        loader = GenericDimLoader(
+            name=name,
+            specs=specs,
+            natural_keys=nat_keys,
+            key_name=key_name,
+            bq_table=bq_table,
+        )
 
-    return transformed_dfs
+        src_df = src_map[name]
+        if src_df.empty:
+            print(f"No data for dimension '{name}' — skipping")
+            continue
 
-def main(start: str | None = None, end: str | None = None) -> None:
-    print("Running ETL for NYC Open Data...")
+        print(f"Loading dimension '{name}'…")
+        transformed[name] = loader.run(src_df)
 
-    if start and end:
-        raw_311 = get_311_data_between(start, end)
-        raw_parking = get_parking_data_between(start, end)
-    else:
-        raw_311 = get_yesterdays_311_data()
-        raw_parking = get_yesterdays_parking_data()
+    return transformed
 
-    if raw_311.empty:
-        print("No new 311 data to process.")
-        cleaned_311 = pd.DataFrame()
-    else:
-        cleaned_311 = clean_311_data(raw_311)
 
-    if raw_parking.empty:
-        print("No new parking data to process.")
-        cleaned_parking = pd.DataFrame()
-    else:
-        cleaned_parking = clean_parking_data(raw_parking)
-
-    if cleaned_311.empty and cleaned_parking.empty:
-        print("No new data to process for 311 or parking.")
-        return
-
-    # Load dimensions and keep them in memory for FK resolution
-    dim_data = load_dimensions(cleaned_311, cleaned_parking)
-
-    # Assign foreign keys to fact_311
-    if not cleaned_311.empty:
-        cleaned_311 = assign_keys(cleaned_311, dim_data["agency"], ["agency", "agency_name"], "Agency_Key")
-        cleaned_311 = assign_keys(cleaned_311, dim_data["complaint"], ["complaint_type", "descriptor", "location_type"], "Complaint_Key")
-        cleaned_311 = assign_keys(cleaned_311, dim_data["location"], [
-            "borough", "city", "incident_zip", "street_name", "incident_address",
-            "cross_street_1", "cross_street_2", "intersection_street_1", "intersection_street_2",
-            "latitude", "longitude"
-        ], "Location_Key")
-
-        if "__join_key__" in cleaned_311.columns:
-            cleaned_311 = cleaned_311.drop(columns="__join_key__")
-
-        load_311_fact(cleaned_311)
-
-    # Assign foreign keys to fact_parking
-    if not cleaned_parking.empty:
-        if "vehicle" in dim_data:
-            cleaned_parking = assign_keys(cleaned_parking, dim_data["vehicle"], ["plate", "state", "license_type"], "Vehicle_Key")
-        if "violation" in dim_data:
-            cleaned_parking = assign_keys(cleaned_parking, dim_data["violation"], ["violation_code", "violation_description"], "Violation_Key")
-        if "parking_location" in dim_data:
-            cleaned_parking = assign_keys(cleaned_parking, dim_data["parking_location"], ["borough", "precinct"], "Parking_Location_Key")
-
-        fact_fields = [
-            "summons_number",
-            "Issue_Date", "Issue_Date_Key",
-            "Agency_Key", "Violation_Key", "Vehicle_Key", "Parking_Location_Key",
-            "Fine_Amount", "Penalty_Amount", "Interest_Amount",
-            "Reduction_Amount", "Payment_Amount", "Amount_Due"
-        ]
-
-        cleaned_parking = cleaned_parking[[col for col in fact_fields if col in cleaned_parking.columns]]
-
-        load_parking_fact(cleaned_parking)
-
-    # Build & load integrated fact
+def build_integrated(
+    df311: pd.DataFrame, dfpark: pd.DataFrame
+) -> Optional[pd.DataFrame]:
     frames: list[pd.DataFrame] = []
-    if not cleaned_311.empty:
-        df_i311 = cleaned_311.assign(
-            Request_ID=cleaned_311["unique_key"],
-            Date_Key=cleaned_311["Created_Date_Key"],
-            Request_Type="311",
-            Amount_Due=pd.NA
-        )[[
-            "Request_ID", "Date_Key", "Agency_Key", "Complaint_Key", "Location_Key",
-            "Request_Type", "resolution_description", "Amount_Due"
-        ]]
-        frames.append(df_i311)
-
-    if not cleaned_parking.empty:
-        ip = cleaned_parking.copy()
-
-        # Build each integrated field explicitly:
+    if not df311.empty:
+        frames.append(
+            df311.assign(
+                Request_ID=df311["unique_key"],
+                Date_Key=df311["Created_Date_Key"],
+                Request_Type="311",
+                Amount_Due=pd.NA,
+            )[
+                [
+                    "Request_ID",
+                    "Date_Key",
+                    "Agency_Key",
+                    "Complaint_Key",
+                    "Location_Key",
+                    "Request_Type",
+                    "resolution_description",
+                    "Amount_Due",
+                ]
+            ]
+        )
+    if not dfpark.empty:
+        ip = dfpark.copy()
         ip["Request_ID"] = ip["summons_number"].astype("Int64")
         ip["Date_Key"] = ip["Issue_Date_Key"]
-        ip["Agency_Key"] = pd.NA
-        ip["Complaint_Key"] = pd.NA
+        ip[["Agency_Key", "Complaint_Key"]] = pd.NA
         ip["Location_Key"] = ip.get("Parking_Location_Key", pd.NA)
         ip["Request_Type"] = "Parking"
         ip["resolution_description"] = pd.NA
+        frames.append(
+            ip[
+                [
+                    "Request_ID",
+                    "Date_Key",
+                    "Agency_Key",
+                    "Complaint_Key",
+                    "Location_Key",
+                    "Request_Type",
+                    "resolution_description",
+                    "Amount_Due",
+                ]
+            ]
+        )
+    return pd.concat(frames, ignore_index=True) if frames else None
 
-        df_ip = ip[[
-            "Request_ID", "Date_Key", "Agency_Key",
-            "Complaint_Key", "Location_Key",
-            "Request_Type", "resolution_description", "Amount_Due"
-        ]]
-        frames.append(df_ip)
 
-    if frames:
-        integrated_df = pd.concat(frames, ignore_index=True)
-        load_integrated_fact(integrated_df)
+def main(start: Optional[str] = None, end: Optional[str] = None) -> None:
+    # Fetch raw data
+    raw_311 = fetch_from_socrata(DATASET_311, start, end)
+    raw_parking = fetch_parking_from_socrata(DATASETS_PARKING, start, end)
+
+    # Exit early if nothing to do
+    if raw_311.empty and raw_parking.empty:
+        print("No new data to process for 311 or parking.")
+        return
+
+    # Ensure date dimension is up to date
+    load_date_dim()
+
+    # Build & load all other dimensions
+    dim_data = load_dimensions(raw_311, raw_parking)
+
+    # Normalize, assign FKs, and push each fact table
+    df311 = fact_311_loader.run(raw_311, dim_data)
+    dfpark = fact_parking_loader.run(raw_parking, dim_data)
+
+    # Build & load integrated fact table
+    integrated = build_integrated(df311, dfpark)
+    if integrated is not None:
+        load_df_to_bq(integrated, FACT_INT_TABLE)
 
     print("ETL complete!")
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run NYC Open Data ETL")
-    parser.add_argument("--start", type=str, help="Start timestamp (e.g. 2023-01-01T00:00:00.000)")
-    parser.add_argument("--end", type=str, help="End timestamp (e.g. 2023-01-02T00:00:00.000)")
+    parser.add_argument(
+        "--start",
+        type=str,
+        help="Start timestamp (e.g. 2023-01-01T00:00:00.000)",
+    )
+    parser.add_argument(
+        "--end",
+        type=str,
+        help="End timestamp (e.g. 2023-01-02T00:00:00.000)",
+    )
     args = parser.parse_args()
-
     main(start=args.start, end=args.end)

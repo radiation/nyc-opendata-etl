@@ -12,7 +12,8 @@ while current < TODAY:
     end_str = next_month.strftime("%Y-%m-%dT00:00:00.000")
 
     print(f"📅 Running ETL for {start_str} → {end_str}")
-    subprocess.run(["python", "main.py", "--start", start_str, "--end", end_str])
+    subprocess.run(
+        ["python", "main.py", "--start", start_str, "--end", end_str], check=True
+    )
 
     current = next_month
-

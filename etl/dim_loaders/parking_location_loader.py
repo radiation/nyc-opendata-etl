@@ -1,4 +1,5 @@
 import pandas as pd
+
 from etl.core.dim_loader import BaseDimLoader
 from etl.core.utils import hash_key, normalize_strings
 
@@ -20,5 +21,7 @@ class ParkingLocationDimLoader(BaseDimLoader):
         columns = ["borough", "precinct"]
         df = normalize_strings(df, columns)
         df = df.dropna(subset=columns)
-        df["Parking_Location_Key"] = df.apply(lambda row: hash_key(row, columns), axis=1)
+        df["Parking_Location_Key"] = df.apply(
+            lambda row: hash_key(row, columns), axis=1
+        )
         return df[["Parking_Location_Key"] + columns]
