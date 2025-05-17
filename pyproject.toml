@@ -5,7 +5,12 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "dotenv>=0.9.9",
+    "google-cloud-bigquery>=3.32.0",
     "mypy>=1.15.0",
+    "pandas>=2.2.3",
     "pre-commit>=4.2.0",
     "pylint>=3.3.7",
+    "sodapy>=2.2.0",
+    "sqlalchemy>=2.0.41",
 ]
