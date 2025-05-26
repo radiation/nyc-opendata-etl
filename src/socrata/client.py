@@ -10,7 +10,6 @@ if _API_TOKEN is None:
     raise RuntimeError("NYC_API_TOKEN environment variable must be set")
 API_TOKEN: str = _API_TOKEN
 
-# DOMAIN will always be a str
 DOMAIN: str = os.getenv("SOCRATA_DOMAIN", "data.cityofnewyork.us")
 
 

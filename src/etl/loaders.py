@@ -50,5 +50,4 @@ def build_fact_df(
             )
             .rename(columns={dim.primary_key: fk_col})
         )
-    # finally, project
     return df[[fact.primary_key, *fact.foreign_keys.keys()]]

@@ -1,6 +1,5 @@
-# src/etl/normalization.py
 from __future__ import annotations
-from typing import Sequence
+from typing import Any, Sequence
 import unicodedata
 
 import pandas as pd
@@ -37,3 +36,20 @@ def normalize_strings(
         df_out.loc[:, col] = normalized
 
     return df_out
+
+
+def parse_violation_time(s: Any) -> str:
+    """
+    Turns '0823A' → '08:23:00.000', '1215P' → '12:15:00.000'.
+    Returns '' on any invalid input.
+    """
+    if not isinstance(s, str) or len(s) < 5:
+        return ""
+    hhmm, ampm = s[:-1], s[-1].upper()
+    hour = int(hhmm[:2])
+    minute = int(hhmm[2:])
+    if ampm == "P" and hour != 12:
+        hour += 12
+    if ampm == "A" and hour == 12:
+        hour = 0
+    return f"{hour:02d}:{minute:02d}:00.000"
