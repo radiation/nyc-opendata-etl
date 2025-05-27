@@ -30,11 +30,11 @@ def main(start: str, end: str) -> None:
 
     # Fetch raw 311 data
     raw_311 = get_311_data_between(start, end)
+    print(f"Fetched {len(raw_311)} records")
 
     # Fetch raw parking
     raw_parking = get_parking_data_between(start, end)
-    print("Fetched parking data with shape:", raw_parking.shape)
-    print("Fetched parking data with cols:", raw_parking.columns)
+    print(f"Fetched {len(raw_parking)} records")
 
     # Calculate derived date & time columns
     raw_311["full_date"] = (pd.to_datetime(raw_311["created_date"]).dt.date)
@@ -42,7 +42,6 @@ def main(start: str, end: str) -> None:
     raw_parking["full_date"] = (
         pd.to_datetime(
             raw_parking["issue_date"],
-            infer_datetime_format=True,
             errors="coerce"
         )
         .dt.strftime("%Y-%m-%d")
@@ -67,13 +66,14 @@ def main(start: str, end: str) -> None:
         adapter.load_dim(dim_df, dim.table_name, truncate=True)
         staging_dims[dim.table_name] = dim_df
 
-    # Load the two facts separately
+    # Load the fact tables separately
     f311 = build_fact_df(raw_311, FACT_311, staging_dims)
     adapter.load_fact(f311, FACT_311.table_name, truncate=True)
 
     fpark = build_fact_df(raw_parking, FACT_PARKING, staging_dims)
     adapter.load_fact(fpark, FACT_PARKING.table_name, truncate=True)
 
+    print("\nETL pipeline completed successfully!")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run NYC Open Data ETL")

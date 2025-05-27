@@ -50,7 +50,7 @@ def get_parking_data_between(
             f"issue_date >= '{start_dt.strftime('%Y-%m-%dT%H:%M:%S.000')}' "
             f"AND issue_date <  '{end_dt.strftime(  '%Y-%m-%dT%H:%M:%S.000')}'"
         )
-        print(f"Fetching parking FY{fy} ({ds_id}) between {start} → {end}")
+        print(f"Fetching parking FY{fy} ({ds_id}) between {start} & {end}")
         df_slice = fetch_dataset(ds_id, where=where, limit=limit)
         records.append(df_slice)
 

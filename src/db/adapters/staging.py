@@ -8,7 +8,6 @@ from google.cloud import bigquery
 
 # SQLite
 from sqlalchemy import create_engine
-from sqlalchemy.engine import Engine
 
 class StagingAdapter(ABC):
     @abstractmethod
@@ -24,7 +23,7 @@ class BigQueryAdapter(StagingAdapter):
     def _load(self, df: pd.DataFrame, table: str, truncate: bool) -> None:
         null_cols = df.columns[df.isna().all()].tolist()
         if null_cols:
-            print(f"⚠️ Columns with all-null values: {null_cols}")
+            print(f"[BQ] Columns with all-null values: {null_cols}")
 
         df = df.dropna(axis=1, how="all")
 
