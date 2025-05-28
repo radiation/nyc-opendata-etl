@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# src/main.py
-
 from __future__ import annotations
 import argparse
 from datetime import datetime, timedelta
@@ -11,35 +8,15 @@ import pandas as pd
 from google.cloud import bigquery
 
 from config import GCP_PROJECT, BQ_STAGING_DATASET
-from socrata.client import fetch_dataset
 from etl.loaders import build_dimension_df, build_fact_df
 from etl.registry import ALL_DIMS, FACT_311, FACT_PARKING
 from etl.normalization import normalize_strings, parse_violation_time
+from etl.facts.fact_311_loader import get_311_data_between
 from etl.facts.fact_parking_loader import get_parking_data_between
 from db.adapters.staging import BigQueryAdapter
 
 # Default timezone for date computations
 TZ = zoneinfo.ZoneInfo("America/New_York")
-
-
-def get_311_data_between(
-    start: str,
-    end: str,
-    limit: int = 10_000_000,
-) -> pd.DataFrame:
-    """
-    Fetch raw 311 data from Socrata for the given date range.
-    Strips any timezone so SoQL sees plain datetimes.
-    """
-    start_dt = datetime.fromisoformat(start)
-    end_dt = datetime.fromisoformat(end)
-    start_str = start_dt.strftime("%Y-%m-%dT%H:%M:%S.000")
-    end_str = end_dt.strftime("%Y-%m-%dT%H:%M:%S.000")
-    where = f"created_date >= '{start_str}' AND created_date < '{end_str}'"
-    print(f"Fetching 311 data between: {start_str} → {end_str}")
-    df = fetch_dataset("erm2-nwe9", where=where, limit=limit)
-    print(f"Fetched {len(df)} records")
-    return df
 
 
 def main(start: str, end: str) -> None:
@@ -72,19 +49,11 @@ def main(start: str, end: str) -> None:
             "registration_state": "state",
         }
     )
-    raw_parking["full_date"] = (
-        pd.to_datetime(
-            raw_parking["issue_date"],
-            infer_datetime_format=True,
-            errors="coerce"
-        )
-        .dt.strftime("%Y-%m-%d")
-    )
-    raw_parking["incident_time"] = raw_parking["violation_time"].apply(
-        parse_violation_time
-    )
+    issue_dates: pd.Series[str] = raw_parking["issue_date"].astype(str)
+    raw_parking["full_date"] = (pd.to_datetime(issue_dates, errors="coerce").dt.strftime("%Y-%m-%d"))
+    raw_parking["incident_time"] = raw_parking["violation_time"].apply(parse_violation_time)
 
-    # Normalize all dimension keys up-front
+    # Normalize dimension keys
     all_keys: Set[str] = {key for dim in ALL_DIMS for key in dim.natural_keys}
 
     keys_311 = list(all_keys & set(raw_311.columns))

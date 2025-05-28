@@ -1,13 +1,9 @@
-# src/db/adapters/staging.py
 from __future__ import annotations
 from abc import ABC, abstractmethod
 import pandas as pd
 
-# BigQuery
 from google.cloud import bigquery
-
-# SQLite
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 
 class StagingAdapter(ABC):
     @abstractmethod
@@ -51,7 +47,7 @@ class SQLiteAdapter(StagingAdapter):
     def load_dim(self, df: pd.DataFrame, table: str, *, truncate: bool = False) -> None:
         if truncate:
             with self.engine.begin() as conn:
-                conn.execute(f"DROP TABLE IF EXISTS {table}")
+                conn.execute(text(f"DROP TABLE IF EXISTS {table}"))
         df.to_sql(table, self.engine, if_exists="append", index=False)
         print(f"[SQLITE] loaded {len(df)} rows into {table}")
 

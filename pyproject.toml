@@ -10,6 +10,7 @@ dependencies = [
     "mypy>=1.15.0",
     "pandas>=2.2.3",
     "pandas-gbq>=0.29.0",
+    "pandas-stubs>=2.2.3.250527",
     "pre-commit>=4.2.0",
     "pyarrow>=20.0.0",
     "pylint>=3.3.7",
