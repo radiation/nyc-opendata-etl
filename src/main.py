@@ -1,25 +1,26 @@
 from __future__ import annotations
+
 import argparse
-from datetime import datetime, timedelta
 import zoneinfo
+from datetime import datetime, timedelta
 from typing import Dict, Set
 
 import pandas as pd
 from google.cloud import bigquery
 
-from config import GCP_PROJECT, BQ_STAGING_DATASET
-from etl.loaders import build_dimension_df, build_fact_df
-from etl.registry import ALL_DIMS, FACT_311, FACT_PARKING
-from etl.normalization import normalize_strings, parse_violation_time
+from config import BQ_STAGING_DATASET, GCP_PROJECT
+from db.adapters.staging import BigQueryAdapter
 from etl.facts.fact_311_loader import get_311_data_between
 from etl.facts.fact_parking_loader import get_parking_data_between
-from db.adapters.staging import BigQueryAdapter
+from etl.loaders import build_dimension_df, build_fact_df
+from etl.normalization import normalize_strings, parse_violation_time
+from etl.registry import ALL_DIMS, FACT_311, FACT_PARKING
 
 # Default timezone for date computations
 TZ = zoneinfo.ZoneInfo("America/New_York")
 
 
-def main(start: str, end: str) -> None:
+def main(start_ts: str, end_ts: str) -> None:
     """
     Orchestrate the ETL pipeline: fetch from Socrata, normalize, build dims/facts,
     and load into BigQuery staging.
@@ -29,17 +30,15 @@ def main(start: str, end: str) -> None:
     adapter = BigQueryAdapter(bq_client, BQ_STAGING_DATASET)
 
     # Fetch source data
-    raw_311 = get_311_data_between(start, end)
-    raw_parking = get_parking_data_between(start, end)
+    raw_311 = get_311_data_between(start_ts, end_ts)
+    raw_parking = get_parking_data_between(start_ts, end_ts)
 
     # Derive date & time natural keys for 311
-    raw_311["full_date"] = (
-        pd.to_datetime(raw_311["created_date"])  
-          .dt.strftime("%Y-%m-%d")
+    raw_311["full_date"] = pd.to_datetime(raw_311["created_date"]).dt.strftime(
+        "%Y-%m-%d"
     )
-    raw_311["incident_time"] = (
-        pd.to_datetime(raw_311["created_date"])  
-          .dt.strftime("%H:%M:%S.000")
+    raw_311["incident_time"] = pd.to_datetime(raw_311["created_date"]).dt.strftime(
+        "%H:%M:%S.000"
     )
 
     # Canonicalize and derive for parking
@@ -50,17 +49,20 @@ def main(start: str, end: str) -> None:
         }
     )
     issue_dates: pd.Series[str] = raw_parking["issue_date"].astype(str)
-    raw_parking["full_date"] = (pd.to_datetime(issue_dates, errors="coerce").dt.strftime("%Y-%m-%d"))
-    raw_parking["incident_time"] = raw_parking["violation_time"].apply(parse_violation_time)
+    raw_parking["full_date"] = pd.to_datetime(issue_dates, errors="coerce").dt.strftime(
+        "%Y-%m-%d"
+    )
+    raw_parking["incident_time"] = raw_parking["violation_time"].apply(
+        parse_violation_time
+    )
 
     # Normalize dimension keys
     all_keys: Set[str] = {key for dim in ALL_DIMS for key in dim.natural_keys}
 
-    keys_311 = list(all_keys & set(raw_311.columns))
-    keys_p = list(all_keys & set(raw_parking.columns))
-
-    raw_311 = normalize_strings(raw_311, columns=keys_311)
-    raw_parking = normalize_strings(raw_parking, columns=keys_p)
+    raw_311 = normalize_strings(raw_311, columns=list(all_keys & set(raw_311.columns)))
+    raw_parking = normalize_strings(
+        raw_parking, columns=list(all_keys & set(raw_parking.columns))
+    )
 
     # Build and load dimensions from combined data
     raw_all = pd.concat([raw_311, raw_parking], ignore_index=True, sort=False)
@@ -100,7 +102,7 @@ if __name__ == "__main__":
     default_start = yesterday_midnight.isoformat(timespec="milliseconds")
     default_end = today_midnight.isoformat(timespec="milliseconds")
 
-    start = args.start or default_start
-    end = args.end or default_end
+    start_arg = args.start or default_start
+    end_arg = args.end or default_end
 
-    main(start, end)
+    main(start_arg, end_arg)

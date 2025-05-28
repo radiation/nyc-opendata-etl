@@ -1,16 +1,50 @@
 repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-yaml
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+
+  - repo: https://github.com/psf/black
+    rev: 23.9.1
+    hooks:
+      - id: black
+        args: ["--line-length=88"]
+        language_version: python3.13
+
+  - repo: https://github.com/charliermarsh/ruff-pre-commit
+    rev: v0.1.7
+    hooks:
+      - id: ruff
+        args: [--fix]
+
+  - repo: https://github.com/pre-commit/mirrors-isort
+    rev: v5.10.1
+    hooks:
+      - id: isort
+
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.5.1
+    rev: v1.8.0
     hooks:
       - id: mypy
-        args: [--config-file=mypy.ini]
+        args: ["--config-file=mypy.ini"]
 
-  - repo: local
+# Disable pylint checks:
+# C0103 (invalid-name)
+# C0114 (missing-module-docstring)
+# C0115 (missing-class-docstring)
+# C0116 (missing-function-docstring)
+# E0013 (bad-continuation)
+# E0213 (no-self-argument)
+# R0903 (too-few-public-methods)
+# W0511 (fixme)
+  - repo: https://github.com/PyCQA/pylint
+    rev: v3.0.3
     hooks:
       - id: pylint
-        name: pylint
-        entry: pylint
-        language: system
-        types: [python]
         args:
           - --rcfile=.pylintrc
+          - --init-hook=import sys; sys.path.insert(0, "src")
+        env:
+            PYTHONPATH: src

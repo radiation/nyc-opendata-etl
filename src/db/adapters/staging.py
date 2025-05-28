@@ -1,15 +1,23 @@
 from __future__ import annotations
-from abc import ABC, abstractmethod
-import pandas as pd
 
+from abc import ABC, abstractmethod
+
+import pandas as pd
 from google.cloud import bigquery
 from sqlalchemy import create_engine, text
 
+
 class StagingAdapter(ABC):
     @abstractmethod
-    def load_dim(self, df: pd.DataFrame, table: str, *, truncate: bool = False) -> None: ...
+    def load_dim(self, df: pd.DataFrame, table: str, *, truncate: bool = False) -> None:
+        ...
+
     @abstractmethod
-    def load_fact(self, df: pd.DataFrame, table: str, *, truncate: bool = False) -> None: ...
+    def load_fact(
+        self, df: pd.DataFrame, table: str, *, truncate: bool = False
+    ) -> None:
+        ...
+
 
 class BigQueryAdapter(StagingAdapter):
     def __init__(self, client: bigquery.Client, dataset: str) -> None:
@@ -37,8 +45,11 @@ class BigQueryAdapter(StagingAdapter):
     def load_dim(self, df: pd.DataFrame, table: str, *, truncate: bool = False) -> None:
         self._load(df, table, truncate)
 
-    def load_fact(self, df: pd.DataFrame, table: str, *, truncate: bool = False) -> None:
+    def load_fact(
+        self, df: pd.DataFrame, table: str, *, truncate: bool = False
+    ) -> None:
         self._load(df, table, truncate)
+
 
 class SQLiteAdapter(StagingAdapter):
     def __init__(self) -> None:
@@ -51,6 +62,8 @@ class SQLiteAdapter(StagingAdapter):
         df.to_sql(table, self.engine, if_exists="append", index=False)
         print(f"[SQLITE] loaded {len(df)} rows into {table}")
 
-    def load_fact(self, df: pd.DataFrame, table: str, *, truncate: bool = False) -> None:
+    def load_fact(
+        self, df: pd.DataFrame, table: str, *, truncate: bool = False
+    ) -> None:
         # same as load_dim for now
         self.load_dim(df, table, truncate=truncate)

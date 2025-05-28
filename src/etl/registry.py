@@ -54,13 +54,13 @@ FACT_311 = FactConfig(
     table_name="fact_311_complaints",
     primary_key="unique_key",
     foreign_keys={
-        "agency_key":       DIM_AGENCY,
-        "complaint_key":    DIM_COMPLAINT,
-        "location_key":     DIM_LOCATION,
+        "agency_key": DIM_AGENCY,
+        "complaint_key": DIM_COMPLAINT,
+        "location_key": DIM_LOCATION,
         "created_date_key": DIM_DATE,
         "created_time_key": DIM_TIME,
-        "closed_date_key":  DIM_DATE,
-        "closed_time_key":  DIM_TIME,
+        "closed_date_key": DIM_DATE,
+        "closed_time_key": DIM_TIME,
     },
 )
 
@@ -78,7 +78,13 @@ FACT_PARKING = FactConfig(
 
 # Registry definitions
 ALL_DIMS = [
-    DIM_AGENCY, DIM_DATE, DIM_COMPLAINT, DIM_LOCATION, 
-    DIM_PARKING_LOCATION, DIM_TIME, DIM_VEHICLE, DIM_VIOLATION
+    DIM_AGENCY,
+    DIM_DATE,
+    DIM_COMPLAINT,
+    DIM_LOCATION,
+    DIM_PARKING_LOCATION,
+    DIM_TIME,
+    DIM_VEHICLE,
+    DIM_VIOLATION,
 ]
 ALL_FACTS = [FACT_311, FACT_PARKING]

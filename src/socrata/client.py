@@ -1,5 +1,5 @@
 import os
-from typing import Any, Mapping, Sequence, cast, Optional
+from typing import Any, Mapping, Optional, Sequence, cast
 
 import pandas as pd
 from sodapy import Socrata
@@ -33,8 +33,6 @@ def fetch_dataset(
 
     # client.get isn’t typed, so mypy/Pylance sees Any — cast it explicitly
     raw: Any = client.get(dataset_id, where=where, limit=limit, **extra_kwargs)
-    records: Sequence[Mapping[str, Any]] = cast(
-        Sequence[Mapping[str, Any]], raw
-    )
+    records: Sequence[Mapping[str, Any]] = cast(Sequence[Mapping[str, Any]], raw)
 
     return pd.DataFrame.from_records(records)

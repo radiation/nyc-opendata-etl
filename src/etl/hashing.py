@@ -1,7 +1,9 @@
 from __future__ import annotations
+
 import hashlib
+from typing import Any, Callable, Sequence
+
 import pandas as pd
-from typing import Callable, Sequence, Any
 
 
 def default_hash(values: Sequence[Any]) -> int:

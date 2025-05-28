@@ -1,7 +1,8 @@
 from __future__ import annotations
+
 import re
-from typing import Any, Sequence
 import unicodedata
+from typing import Any, Sequence
 
 import pandas as pd
 

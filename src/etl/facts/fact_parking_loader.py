@@ -1,5 +1,7 @@
 from __future__ import annotations
+
 from datetime import datetime
+
 import pandas as pd
 
 from socrata.client import fetch_dataset
@@ -19,10 +21,12 @@ PARKING_DATASETS: dict[int, str] = {
     2024: "pvqr-7yc4",
 }
 
+
 def fiscal_year(dt: datetime) -> int:
     # FY runs July 1 to June 30
     year = dt.year
     return year + 1 if dt.month >= 7 else year
+
 
 def get_parking_data_between(
     start: str,
@@ -30,16 +34,16 @@ def get_parking_data_between(
     limit: int = 5_000_000,
 ) -> pd.DataFrame:
     """
-    Fetch parking enforcement across all fiscal-year 
+    Fetch parking enforcement across all fiscal-year
     slices that overlap the [start, end) window.
     """
     start_dt = datetime.fromisoformat(start)
-    end_dt   = datetime.fromisoformat(end)
+    end_dt = datetime.fromisoformat(end)
 
     records: list[pd.DataFrame] = []
     # determine all FYs we touch
     fy_start = fiscal_year(start_dt)
-    fy_end   = fiscal_year(end_dt)
+    fy_end = fiscal_year(end_dt)
     for fy in range(fy_start, fy_end + 1):
         ds_id = PARKING_DATASETS.get(fy)
         if not ds_id:

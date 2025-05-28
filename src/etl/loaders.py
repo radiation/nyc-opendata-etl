@@ -1,6 +1,8 @@
 from __future__ import annotations
-import pandas as pd
+
 from typing import Dict
+
+import pandas as pd
 
 from .config import DimensionConfig, FactConfig
 from .normalization import normalize_strings
@@ -43,21 +45,21 @@ def build_fact_df(
     print(f"  foreign_keys: {list(fact.foreign_keys.keys())}")
     df = raw.copy()
     for fk_col, dim in fact.foreign_keys.items():
-        print(f"  Joining dimension {dim.table_name} with {fk_col} on natural keys: {dim.natural_keys}")
-        df = (
-            df
-            .merge(
-                staging_dims[dim.table_name][dim.natural_keys + [dim.primary_key]],
-                on=dim.natural_keys,
-                how="left",
-            )
-            .rename(columns={dim.primary_key: fk_col})
+        print(
+            f"  Joining dimension {dim.table_name} with {fk_col} on natural keys: {dim.natural_keys}"
         )
+        df = df.merge(
+            staging_dims[dim.table_name][dim.natural_keys + [dim.primary_key]],
+            on=dim.natural_keys,
+            how="left",
+        ).rename(columns={dim.primary_key: fk_col})
     # 2) finally project only the fact PK and the FK columns
     result = df[[fact.primary_key, *fact.foreign_keys.keys()]]
 
     # 3) (optional) dedupe any accidental duplicate column names
     result = result.loc[:, ~result.columns.duplicated()]
-    print(f"  Joined {len(result)} rows with {len(result.columns)} columns after FK joins")
+    print(
+        f"  Joined {len(result)} rows with {len(result.columns)} columns after FK joins"
+    )
 
     return result

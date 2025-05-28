@@ -1,5 +1,7 @@
-from google.cloud import bigquery
 from typing import List, Tuple
+
+from google.cloud import bigquery
+
 
 def validate_foreign_keys(
     client: bigquery.Client,
@@ -20,7 +22,10 @@ def validate_foreign_keys(
         """
         orphan_count = client.query(query).result().to_dataframe()["orphan_count"][0]
         if orphan_count > 0:
-            raise ValueError(f"Found {orphan_count} orphan keys in {fk_col} → {dim_table}.{dim_pk}")
+            raise ValueError(
+                f"Found {orphan_count} orphan keys in {fk_col} → {dim_table}.{dim_pk}"
+            )
+
 
 def validate_unique(
     client: bigquery.Client,
@@ -32,7 +37,7 @@ def validate_unique(
     """
     cols = ", ".join(key_cols)
     query = f"""
-    SELECT 
+    SELECT
       COUNT(*) AS total,
       COUNT(DISTINCT {cols}) AS distinct_count
     FROM `{table}`
