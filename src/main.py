@@ -10,8 +10,7 @@ from google.cloud import bigquery
 
 from config import BQ_STAGING_DATASET, GCP_PROJECT
 from db.adapters.staging import BigQueryAdapter
-from etl.facts.fact_311_loader import get_311_data_between
-from etl.facts.fact_parking_loader import get_parking_data_between
+from etl.fetchers import get_311_data_between, get_parking_data_between
 from etl.loaders import build_dimension_df, build_fact_df
 from etl.normalization import normalize_strings, parse_violation_time
 from etl.registry import ALL_DIMS, FACT_311, FACT_PARKING

@@ -7,11 +7,13 @@ ignore=.venv
 #  C0115: missing-class-docstring
 #  C0116: missing-function-docstring
 #  E0401: import-error
+#  E0611: no-name-in-module
 disable=
     C0114,
     C0115,
     C0116,
-    E0401
+    E0401,
+    E0611
 
 [FORMAT]
 max-line-length=88
