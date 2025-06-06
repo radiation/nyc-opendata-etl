@@ -1,83 +1,81 @@
-from __future__ import annotations
-
+import os
 from datetime import datetime
+from typing import Optional
 
 import pandas as pd
 
-from socrata.client import fetch_dataset
+from socrata.client import SocrataClient
 
-# your mapping of fiscal year → dataset ID
-PARKING_DATASETS: dict[int, str] = {
-    2014: "jt7v-77mi",
-    2015: "c284-tqph",
-    2016: "kiv2-tbus",
-    2017: "2bnn-yakx",
-    2018: "a5td-mswe",
-    2019: "faiq-9dfq",
-    2020: "p7t3-5i9s",
-    2021: "kvfd-bves",
-    2022: "7mxj-7a6y",
-    2023: "869v-vr48",
-    2024: "pvqr-7yc4",
-}
+# Ensure API_TOKEN is a real str (not Optional[str])
+_API_TOKEN: Optional[str] = os.getenv("NYC_API_TOKEN")
+if _API_TOKEN is None:
+    raise RuntimeError("NYC_API_TOKEN environment variable must be set")
+API_TOKEN: str = _API_TOKEN
+
+DOMAIN: str = os.getenv("SOCRATA_DOMAIN", "data.cityofnewyork.us")
 
 
-def fiscal_year(dt: datetime) -> int:
-    # FY runs July 1 to June 30
-    year = dt.year
-    return year + 1 if dt.month >= 7 else year
+client = SocrataClient(domain=DOMAIN, app_token=API_TOKEN)
 
 
-def get_311_data_between(
-    start: str,
-    end: str,
-    limit: int = 10_000_000,
-) -> pd.DataFrame:
-    """
-    Fetch raw 311 data from Socrata for the given date range.
-    Strips any timezone so SoQL sees plain datetimes.
-    """
-    start_dt = datetime.fromisoformat(start)
-    end_dt = datetime.fromisoformat(end)
-    start_str = start_dt.strftime("%Y-%m-%dT%H:%M:%S.000")
-    end_str = end_dt.strftime("%Y-%m-%dT%H:%M:%S.000")
-    where = f"created_date >= '{start_str}' AND created_date < '{end_str}'"
-    print(f"Fetching 311 data between: {start_str} → {end_str}")
-    df: pd.DataFrame = fetch_dataset("erm2-nwe9", where=where, limit=limit)
-    print(f"Fetched {len(df)} records")
-    return df
+def _get_fiscal_year(date: datetime) -> int:
+    return date.year + 1 if date.month >= 7 else date.year
 
 
-def get_parking_data_between(
-    start: str,
-    end: str,
-    limit: int = 5_000_000,
-) -> pd.DataFrame:
-    """
-    Fetch parking enforcement across all fiscal-year
-    slices that overlap the [start, end) window.
-    """
-    start_dt = datetime.fromisoformat(start)
-    end_dt = datetime.fromisoformat(end)
+def fetch_311_complaints(start: str, end: str) -> pd.DataFrame:
+    """Fetch 311 complaints between two timestamps."""
+    records = client.fetch("fhrw-4uyv", start=start, end=end, date_field="created_date")
+    return pd.DataFrame.from_records(records)
 
-    records: list[pd.DataFrame] = []
-    # determine all FYs we touch
-    fy_start = fiscal_year(start_dt)
-    fy_end = fiscal_year(end_dt)
-    for fy in range(fy_start, fy_end + 1):
-        ds_id = PARKING_DATASETS.get(fy)
-        if not ds_id:
-            continue
 
-        # build a SoQL on the issue_date column
-        where = (
-            f"issue_date >= '{start_dt.strftime('%Y-%m-%dT%H:%M:%S.000')}' "
-            f"AND issue_date <  '{end_dt.strftime(  '%Y-%m-%dT%H:%M:%S.000')}'"
-        )
-        print(f"Fetching parking FY{fy} ({ds_id}) between {start} & {end}")
-        df_slice = fetch_dataset(ds_id, where=where, limit=limit)
-        records.append(df_slice)
+def fetch_parking(start: str, end: str) -> pd.DataFrame:
+    """Fetch parking data spanning fiscal years that overlap with [start, end]."""
+    start_dt = datetime.strptime(start, "%Y-%m-%dT%H:%M:%S.%f")
+    end_dt = datetime.strptime(end, "%Y-%m-%dT%H:%M:%S.%f")
 
-    if not records:
-        return pd.DataFrame()
-    return pd.concat(records, ignore_index=True)
+    start_fy = _get_fiscal_year(start_dt)
+    end_fy = _get_fiscal_year(end_dt)
+
+    dfs: list[pd.DataFrame] = []
+
+    for fy in range(start_fy, end_fy + 1):
+        try:
+            print(f"📄 Fetching FY{fy} parking data")
+            df = fetch_parking_violations_by_year(fy)
+            dfs.append(df)
+        except ValueError:
+            print(f"⚠️ Skipping FY{fy} — no dataset available")
+
+    combined = pd.concat(dfs, ignore_index=True)
+    combined.drop_duplicates(subset="summons_number", inplace=True)
+    return combined
+
+
+def fetch_parking_violations_by_year(year: int) -> pd.DataFrame:
+    """Fetch parking violations for a specific year."""
+    dataset_map = {
+        2014: "jt7v-77mi",
+        2015: "c284-tqph",
+        2016: "kiv2-tbus",
+        2017: "2bnn-yakx",
+        2018: "a5td-mswe",
+        2019: "faiq-9dfq",
+        2020: "p7t3-5i9s",
+        2021: "kvfd-bves",
+        2022: "7mxj-7a6y",
+        2023: "869v-vr48",
+        2024: "pvqr-7yc4",
+    }
+
+    if year not in dataset_map:
+        raise ValueError(f"No dataset ID found for year {year}")
+
+    dataset_id = dataset_map[year]
+    records = client.fetch(dataset_id)
+    return pd.DataFrame.from_records(records)
+
+
+def fetch_parking_with_fines(start: str, end: str) -> pd.DataFrame:
+    """Fetch camera and parking ticket fines (merged)."""
+    records = client.fetch("nc67-uf89", start=start, end=end)
+    return pd.DataFrame.from_records(records)

@@ -43,23 +43,40 @@ def build_fact_df(
     print(f"Building fact table: {fact.table_name}")
     print(f"  primary_key: {fact.primary_key}")
     print(f"  foreign_keys: {list(fact.foreign_keys.keys())}")
+    print(f"  extra_fields: {fact.extra_fields}")
+
     df = raw.copy()
+    natural_keys = {
+        key for dim in fact.foreign_keys.values() for key in dim.natural_keys
+    }
+    required_columns = list(natural_keys | {fact.primary_key} | set(fact.extra_fields))
+    print(f"  Required columns for fact table: {required_columns}")
+
+    df = df[[col for col in required_columns if col in df.columns]].copy()
+    print(f"  Initial columns: {df.columns.tolist()}")
     for fk_col, dim in fact.foreign_keys.items():
-        print(
-            f"  Joining dimension {dim.table_name} with {fk_col} on natural keys: {dim.natural_keys}"
-        )
+        right = staging_dims[dim.table_name][dim.natural_keys + [dim.primary_key]]
         df = df.merge(
-            staging_dims[dim.table_name][dim.natural_keys + [dim.primary_key]],
+            right,
             on=dim.natural_keys,
             how="left",
-        ).rename(columns={dim.primary_key: fk_col})
-    # 2) finally project only the fact PK and the FK columns
-    result = df[[fact.primary_key, *fact.foreign_keys.keys()]]
+        )
+        df = df.rename(columns={dim.primary_key: fk_col})
+        print(f"  Joined {fk_col} from {dim.table_name} on {dim.natural_keys}")
 
-    # 3) (optional) dedupe any accidental duplicate column names
+    print(f"  After FK joins: {df.columns.tolist()}")
+
+    # Project only the fact PK and the FK columns
+    available = [col for col in fact.all_columns() if col in df.columns]
+    result = df[available].copy()
+
+    print(f"  Selected columns: {result.columns.tolist()}")
+
+    # (Optional) dedupe any accidental duplicate column names
     result = result.loc[:, ~result.columns.duplicated()]
     print(
         f"  Joined {len(result)} rows with {len(result.columns)} columns after FK joins"
     )
 
+    print(f"  Final columns: {result.columns.tolist()}")
     return result

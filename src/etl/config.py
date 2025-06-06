@@ -29,3 +29,7 @@ class FactConfig:
     table_name: str
     primary_key: str
     foreign_keys: Dict[str, DimensionConfig]
+    extra_fields: List[str]
+
+    def all_columns(self) -> list[str]:
+        return [self.primary_key] + list(self.foreign_keys.keys()) + self.extra_fields

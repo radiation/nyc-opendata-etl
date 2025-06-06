@@ -62,6 +62,7 @@ FACT_311 = FactConfig(
         "closed_date_key": DIM_DATE,
         "closed_time_key": DIM_TIME,
     },
+    extra_fields=[],
 )
 
 FACT_PARKING = FactConfig(
@@ -74,6 +75,16 @@ FACT_PARKING = FactConfig(
         "vehicle_key": DIM_VEHICLE,
         "violation_code": DIM_VIOLATION,
     },
+    extra_fields=[
+        "amount_due",
+        "payment_amount",
+        "payment_date",
+        "reduction_amount",
+        "interest_amount",
+        "penalty_amount",
+        "booted",
+        "hearing_result",
+    ],
 )
 
 # Registry definitions

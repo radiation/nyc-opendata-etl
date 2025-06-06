@@ -1,38 +1,27 @@
-import os
-from typing import Any, Mapping, Optional, Sequence, cast
+from typing import Optional, Union
 
-import pandas as pd
 from sodapy import Socrata
 
-# Ensure API_TOKEN is a real str (not Optional[str])
-_API_TOKEN: Optional[str] = os.getenv("NYC_API_TOKEN")
-if _API_TOKEN is None:
-    raise RuntimeError("NYC_API_TOKEN environment variable must be set")
-API_TOKEN: str = _API_TOKEN
 
-DOMAIN: str = os.getenv("SOCRATA_DOMAIN", "data.cityofnewyork.us")
+class SocrataClient:
+    def __init__(self, domain: str, app_token: Optional[str] = None) -> None:
+        self.client = Socrata(domain, app_token)
 
+    def fetch(
+        self,
+        dataset_id: str,
+        start: Optional[str] = None,
+        end: Optional[str] = None,
+        limit: int = 50000,
+        date_field: str = "issue_date",
+    ) -> list[dict[str, Union[str, float, int, None]]]:
+        where_clauses: list[str] = []
 
-def fetch_dataset(
-    dataset_id: str,
-    *,
-    where: Optional[str] = None,
-    limit: int = 1_000_000,
-    **extra_kwargs: Any,
-) -> pd.DataFrame:
-    """
-    Fetch from Socrata and return a DataFrame.
+        if start:
+            where_clauses.append(f"{date_field} >= '{start}'")
+        if end:
+            where_clauses.append(f"{date_field} < '{end}'")
 
-    :param dataset_id: e.g. "erm2-nwe9"
-    :param where: optional SoQL WHERE clause
-    :param limit: max rows
-    :param extra_kwargs: passed through to Socrata.get()
-    :returns: a pd.DataFrame
-    """
-    client: Socrata = Socrata(DOMAIN, API_TOKEN)
+        where = " AND ".join(where_clauses) if where_clauses else None
 
-    # client.get isn’t typed, so mypy/Pylance sees Any — cast it explicitly
-    raw: Any = client.get(dataset_id, where=where, limit=limit, **extra_kwargs)
-    records: Sequence[Mapping[str, Any]] = cast(Sequence[Mapping[str, Any]], raw)
-
-    return pd.DataFrame.from_records(records)
+        return self.client.get(dataset_id, where=where, limit=limit)

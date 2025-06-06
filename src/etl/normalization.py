@@ -22,20 +22,29 @@ def normalize_strings(
     Returns a new DataFrame.
     """
     df_out: pd.DataFrame = df.copy()
+
+    # Drop duplicate columns (must be done before accessing individual Series)
+    df_out = df_out.loc[:, ~df_out.columns.duplicated()].copy()
+
     for col in columns:
         if col not in df_out.columns:
             continue
 
-        # chain map/str methods for speed & clarity
+        series = df_out[col]
+        if isinstance(series, pd.DataFrame):
+            raise TypeError(
+                f"Expected Series for column '{col}', got DataFrame — duplicate column name?"
+            )
+
         normalized = (
-            df_out[col]
-            .fillna("")
+            series.fillna("")
             .astype(str)
             .map(lambda s: unicodedata.normalize("NFKD", s))
             .str.strip()
             .str.lower()
         )
-        df_out.loc[:, col] = normalized
+
+        df_out[col] = normalized
 
     return df_out
 
