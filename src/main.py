@@ -12,8 +12,7 @@ from google.cloud import bigquery
 
 from config import BQ_STAGING_DATASET, GCP_PROJECT
 from db.adapters.staging import BigQueryAdapter
-from etl.fetchers import (fetch_311_complaints, fetch_parking,
-                          fetch_parking_with_fines)
+from etl.fetchers import fetch_generic_data, fetch_parking
 from etl.loaders import build_dimension_df, build_fact_df
 from etl.normalization import normalize_strings, parse_violation_time
 from etl.registry import ALL_DIMS, FACT_311, FACT_PARKING
@@ -107,16 +106,28 @@ def main(start_ts: str, end_ts: str) -> None:
     bq_client = bigquery.Client(project=GCP_PROJECT)
     adapter = BigQueryAdapter(bq_client, BQ_STAGING_DATASET)
 
-    # Fetch 311 data
     print(f"Fetching data from {start_ts} to {end_ts}")
-    raw_311 = fetch_311_complaints(start_ts, end_ts)
+
+    # Fetch 311 data
+    raw_311 = fetch_generic_data(
+        dataset_id="fhrw-4uyv",
+        start=start_ts,
+        end=end_ts,
+        date_field="created_date",
+        limit=1_000_000,
+    )
     print(f"Fetched {len(raw_311)} 311 complaints")
 
     # Fetch parking tickets and fines
-    print("Fetching parking tickets and fines...")
     raw_parking = fetch_parking(start_ts, end_ts)
     print(f"Fetched {len(raw_parking)} parking tickets")
-    raw_fines = fetch_parking_with_fines(start_ts, end_ts)
+    raw_fines = fetch_generic_data(
+        dataset_id="nc67-uf89",
+        start=start_ts,
+        end=end_ts,
+        date_field="issue_date",
+        limit=1_000_000,
+    )
     print(f"Fetched {len(raw_fines)} parking fines")
 
     # Normalize dimension keys

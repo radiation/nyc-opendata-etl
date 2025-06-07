@@ -35,13 +35,31 @@ def _get_fiscal_year(date: datetime) -> int:
     return date.year + 1 if date.month >= 7 else date.year
 
 
-def fetch_311_complaints(start: str, end: str, limit=1_000_000) -> pd.DataFrame:
-    """Fetch 311 complaints between two timestamps."""
+def fetch_generic_data(
+    dataset_id: str,
+    start: str,
+    end: str,
+    date_field: str = "created_date",
+    limit: int = 1_000_000,
+) -> pd.DataFrame:
+    """
+    Fetch generic data from a Socrata dataset.
+
+    Args:
+        dataset_id: The Socrata dataset ID to fetch.
+        start: Start timestamp in ISO format (e.g., "2023-01-01T00:00:00.000").
+        end: End timestamp in ISO format (e.g., "2023-12-31T23:59:59.999").
+        date_field: The field to filter by date (default is "created_date").
+        limit: Maximum number of records to fetch (default is 1,000,000).
+
+    Returns:
+        A DataFrame containing the fetched records.
+    """
     records = client.fetch(
-        "fhrw-4uyv",
+        dataset_id=dataset_id,
         start=start,
         end=end,
-        date_field="created_date",
+        date_field=date_field,
         limit=limit
     )
     return pd.DataFrame.from_records(records)
@@ -63,27 +81,15 @@ def fetch_parking(start: str, end: str, limit=1_500_000) -> pd.DataFrame:
             continue
 
         print(f"📄 Fetching parking data for FY{fy}")
-        df = client.fetch(
+        df = fetch_generic_data(
             dataset_id=dataset_id,
             start=start,
             end=end,
             date_field="issue_date",
-            limit=limit,
+            limit=limit
         )
         dfs.append(pd.DataFrame.from_records(df))
 
     combined = pd.concat(dfs, ignore_index=True)
     combined.drop_duplicates(subset="summons_number", inplace=True)
     return combined
-
-
-def fetch_parking_with_fines(start: str, end: str, limit=1_000_000) -> pd.DataFrame:
-    """Fetch camera and parking ticket fines (merged)."""
-    records = client.fetch(
-        "nc67-uf89",
-        start=start,
-        end=end,
-        date_field="issue_date",
-        limit=limit
-    )
-    return pd.DataFrame.from_records(records)
